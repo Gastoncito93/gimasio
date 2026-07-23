@@ -2,8 +2,10 @@ namespace Backend.Controllers;
 
 using Backend.DTOs.Plan;
 using Backend.Services.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
+[Authorize]
 [ApiController]
 [Route("api/[controller]")]
 public class PlanController : ControllerBase
@@ -33,6 +35,7 @@ public class PlanController : ControllerBase
         return Ok(plan);
     }
 
+    [Authorize(Roles = "Administrador")]
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] PlanCreateUpdateDto dto)
     {
@@ -44,6 +47,7 @@ public class PlanController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = data!.Id }, data);
     }
 
+    [Authorize(Roles = "Administrador")]
     [HttpPut("{id:int}")]
     public async Task<IActionResult> Update(int id, [FromBody] PlanCreateUpdateDto dto)
     {
@@ -59,6 +63,7 @@ public class PlanController : ControllerBase
         return Ok(data);
     }
 
+    [Authorize(Roles = "Administrador")]
     [HttpPatch("{id:int}/estado")]
     public async Task<IActionResult> ChangeEstado(int id, [FromBody] PlanEstadoUpdateDto dto)
     {
