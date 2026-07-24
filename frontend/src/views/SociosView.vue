@@ -1,0 +1,924 @@
+<script setup>
+import { ref, onMounted, computed } from 'vue';
+import socioService from '../services/socioService';
+import planService from '../services/planService';
+import authService from '../services/authService';
+
+// Auth State
+const isAdmin = computed(() => authService.hasRole('Administrador'));
+
+// Table / Filter State
+const socios = ref([]);
+const currentPage = ref(1);
+const pageSize = ref(10); // Increased default page size for wider view
+const totalPages = ref(0);
+const totalItems = ref(0);
+const search = ref('');
+const statusFilter = ref('');
+const planFilter = ref('');
+const errors = ref([]);
+
+// Form / Drawer State
+const showDrawer = ref(false);
+const isEditing = ref(false);
+const formSocioId = ref(null);
+const formDni = ref('');
+const formNombreCompleto = ref('');
+const formTelefono = ref('');
+const formEmail = ref('');
+const formFechaAlta = ref(new Date().toISOString().substring(0, 10));
+const formEstado = ref('Activo');
+
+// Plan Search inside Form State
+const selectedPlan = ref(null); // { id, nombre, precioMensual }
+const planSearchQuery = ref('');
+const planSuggestions = ref([]);
+const showPlanSuggestions = ref(false);
+
+// Load data
+const fetchSocios = async () => {
+  try {
+    errors.value = [];
+    const result = await socioService.getAll(
+      currentPage.value,
+      pageSize.value,
+      search.value,
+      statusFilter.value,
+      planFilter.value
+    );
+    socios.value = result.data;
+    currentPage.value = result.pagination.currentPage;
+    totalPages.value = result.pagination.totalPages;
+    totalItems.value = result.pagination.totalItems;
+  } catch (err) {
+    handleError(err);
+  }
+};
+
+// Handle errors
+const handleError = (err) => {
+  if (err.response && err.response.data && err.response.data.errors) {
+    errors.value = err.response.data.errors;
+  } else {
+    errors.value = ['Ha ocurrido un error inesperado al conectar con el servidor.'];
+  }
+};
+
+// Search plans by Ajax inside the form
+const onPlanSearchInput = async () => {
+  if (planSearchQuery.value.trim().length < 2) {
+    planSuggestions.value = [];
+    showPlanSuggestions.value = false;
+    return;
+  }
+
+  try {
+    const result = await planService.buscar(planSearchQuery.value, 10);
+    planSuggestions.value = result;
+    showPlanSuggestions.value = result.length > 0;
+  } catch (err) {
+    console.error('Error buscando planes', err);
+  }
+};
+
+const selectPlan = (plan) => {
+  selectedPlan.value = plan;
+  planSearchQuery.value = '';
+  planSuggestions.value = [];
+  showPlanSuggestions.value = false;
+};
+
+const clearSelectedPlan = () => {
+  selectedPlan.value = null;
+};
+
+// Filter search & reset
+let searchTimeout;
+const onSearchInput = () => {
+  clearTimeout(searchTimeout);
+  searchTimeout = setTimeout(() => {
+    currentPage.value = 1;
+    fetchSocios();
+  }, 350);
+};
+
+const triggerSearch = () => {
+  currentPage.value = 1;
+  fetchSocios();
+};
+
+const clearSearch = () => {
+  search.value = '';
+  statusFilter.value = '';
+  planFilter.value = '';
+  currentPage.value = 1;
+  fetchSocios();
+};
+
+// Pagination
+const prevPage = () => {
+  if (currentPage.value > 1) {
+    currentPage.value--;
+    fetchSocios();
+  }
+};
+
+const nextPage = () => {
+  if (currentPage.value < totalPages.value) {
+    currentPage.value++;
+    fetchSocios();
+  }
+};
+
+// Open drawer for creating
+const openCreateDrawer = () => {
+  resetForm();
+  showDrawer.value = true;
+};
+
+// Edit handler
+const editSocio = (socio) => {
+  errors.value = [];
+  isEditing.value = true;
+  formSocioId.value = socio.id;
+  formDni.value = socio.dni;
+  formNombreCompleto.value = socio.nombreCompleto;
+  formTelefono.value = socio.telefono || '';
+  formEmail.value = socio.email || '';
+  formFechaAlta.value = socio.fechaAlta.substring(0, 10);
+  formEstado.value = socio.estado;
+  selectedPlan.value = {
+    id: socio.idPlan,
+    nombre: socio.planNombre,
+    precioMensual: 0
+  };
+  showDrawer.value = true;
+};
+
+// Form submission
+const onSubmit = async () => {
+  errors.value = [];
+
+  // Frontend Validations
+  if (!formDni.value.trim()) {
+    errors.value.push('El DNI es obligatorio.');
+  }
+  if (!formNombreCompleto.value.trim()) {
+    errors.value.push('El nombre completo es obligatorio.');
+  }
+  if (!selectedPlan.value) {
+    errors.value.push('Debe seleccionar un plan válido.');
+  }
+  if (!formFechaAlta.value) {
+    errors.value.push('La fecha de alta es obligatoria.');
+  }
+  if (formEmail.value.trim()) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formEmail.value.trim())) {
+      errors.value.push('El formato de correo electrónico no es válido.');
+    }
+  }
+
+  if (errors.value.length > 0) return;
+
+  const payload = {
+    dni: formDni.value.trim(),
+    nombreCompleto: formNombreCompleto.value.trim(),
+    telefono: formTelefono.value.trim() || null,
+    email: formEmail.value.trim() || null,
+    fechaAlta: new Date(formFechaAlta.value).toISOString(),
+    estado: formEstado.value,
+    idPlan: selectedPlan.value.id
+  };
+
+  try {
+    if (isEditing.value) {
+      await socioService.update(formSocioId.value, payload);
+    } else {
+      await socioService.create(payload);
+    }
+    closeDrawer();
+    fetchSocios();
+  } catch (err) {
+    handleError(err);
+  }
+};
+
+// Change state (Activar/Inactivar)
+const toggleStatus = async (socio) => {
+  if (!isAdmin.value) return;
+  errors.value = [];
+  const newStatus = socio.estado === 'Activo' ? 'Inactivo' : 'Activo';
+  try {
+    await socioService.updateEstado(socio.id, newStatus);
+    fetchSocios();
+  } catch (err) {
+    handleError(err);
+  }
+};
+
+// Close drawer
+const closeDrawer = () => {
+  showDrawer.value = false;
+  resetForm();
+};
+
+// Reset form to default values
+const resetForm = () => {
+  isEditing.value = false;
+  formSocioId.value = null;
+  formDni.value = '';
+  formNombreCompleto.value = '';
+  formTelefono.value = '';
+  formEmail.value = '';
+  formFechaAlta.value = new Date().toISOString().substring(0, 10);
+  formEstado.value = 'Activo';
+  selectedPlan.value = null;
+  planSearchQuery.value = '';
+  planSuggestions.value = [];
+  showPlanSuggestions.value = false;
+  errors.value = [];
+};
+
+// Format Date
+const formatDate = (dateStr) => {
+  if (!dateStr) return '-';
+  const d = new Date(dateStr);
+  return d.toLocaleDateString('es-AR');
+};
+
+onMounted(() => {
+  fetchSocios();
+});
+</script>
+
+<template>
+  <div class="socios-container">
+    <header class="header">
+      <h1>Gestión de Socios</h1>
+      <p class="subtitle">Administración de los socios inscriptos en el gimnasio</p>
+    </header>
+
+    <!-- Error Alerts -->
+    <div v-if="errors.length > 0" class="error-alert">
+      <strong>Por favor, corrija los siguientes errores:</strong>
+      <ul>
+        <li v-for="(err, idx) in errors" :key="idx">{{ err }}</li>
+      </ul>
+    </div>
+
+    <!-- Main Workspace (Wide, 100% width table view) -->
+    <div class="workspace">
+      <div class="main-content">
+        <!-- Filters Card (No search button, auto reactive filters + New Socio button) -->
+        <div class="filters-card">
+          <div class="filter-group flex-grow">
+            <input
+              type="text"
+              v-model="search"
+              placeholder="Buscar por DNI, nombre, teléfono o email..."
+              @input="onSearchInput"
+            />
+          </div>
+          
+          <div class="filter-group">
+            <select v-model="statusFilter" @change="triggerSearch">
+              <option value="">Todos los estados</option>
+              <option value="Activo">Activo</option>
+              <option value="Inactivo">Inactivo</option>
+            </select>
+          </div>
+
+          <div class="filter-buttons">
+            <button @click="clearSearch" class="btn btn-secondary">Limpiar búsqueda</button>
+            <button @click="openCreateDrawer" class="btn btn-primary">Nuevo Socio</button>
+          </div>
+        </div>
+
+        <!-- Table Area -->
+        <div v-if="socios.length > 0" class="table-responsive">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>DNI</th>
+                <th>Nombre Completo</th>
+                <th>Teléfono</th>
+                <th>Email</th>
+                <th>Plan</th>
+                <th>Fecha Alta</th>
+                <th>Estado</th>
+                <th class="actions-col">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="socio in socios" :key="socio.id" :class="{ 'inactive-row': socio.estado === 'Inactivo' }">
+                <td class="font-bold">{{ socio.dni }}</td>
+                <td>{{ socio.nombreCompleto }}</td>
+                <td>{{ socio.telefono || '-' }}</td>
+                <td>{{ socio.email || '-' }}</td>
+                <td>
+                  <span class="plan-tag">{{ socio.planNombre }}</span>
+                </td>
+                <td>{{ formatDate(socio.fechaAlta) }}</td>
+                <td>
+                  <span :class="['badge', socio.estado === 'Activo' ? 'badge-active' : 'badge-inactive']">
+                    {{ socio.estado }}
+                  </span>
+                </td>
+                <td class="actions-cell">
+                  <button @click="editSocio(socio)" class="btn btn-sm btn-edit">Editar</button>
+                  <button
+                    v-if="isAdmin"
+                    @click="toggleStatus(socio)"
+                    :class="['btn', 'btn-sm', socio.estado === 'Activo' ? 'btn-status-inactive' : 'btn-status-active']"
+                  >
+                    {{ socio.estado === 'Activo' ? 'Inactivar' : 'Activar' }}
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div v-else class="empty-state-card">
+          <span class="empty-icon">🔍</span>
+          <p class="empty-text">No se encontraron socios registrados.</p>
+        </div>
+
+        <!-- Pagination -->
+        <div class="pagination" v-if="totalPages > 0">
+          <button @click="prevPage" :disabled="currentPage === 1" class="btn btn-page">Anterior</button>
+          <span class="page-info">Página {{ currentPage }} de {{ totalPages }} ({{ totalItems }} items)</span>
+          <button @click="nextPage" :disabled="currentPage === totalPages" class="btn btn-page">Siguiente</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Floating Centered Modal Dialog for Create / Edit Form -->
+    <div v-if="showDrawer" class="modal-backdrop" @click.self="closeDrawer">
+      <div class="modal-panel">
+        <div class="modal-header">
+          <h2>{{ isEditing ? `Editar Socio #${formSocioId}` : 'Nuevo Socio' }}</h2>
+          <button @click="closeDrawer" class="btn-close-modal">✕</button>
+        </div>
+
+        <form @submit.prevent="onSubmit" class="modal-form">
+          <div class="form-group">
+            <label for="dni">DNI *</label>
+            <input type="text" id="dni" v-model="formDni" required placeholder="Ej. 35123456" />
+          </div>
+
+          <div class="form-group">
+            <label for="nombre">Nombre Completo *</label>
+            <input type="text" id="nombre" v-model="formNombreCompleto" required placeholder="Ej. Juan Pérez" />
+          </div>
+
+          <div class="form-group">
+            <label for="telefono">Teléfono</label>
+            <input type="text" id="telefono" v-model="formTelefono" placeholder="Ej. 1150000000" />
+          </div>
+
+          <div class="form-group">
+            <label for="email">Email</label>
+            <input type="email" id="email" v-model="formEmail" placeholder="Ej. juan@gmail.com" />
+          </div>
+
+          <div class="form-group">
+            <label for="fechaAlta">Fecha de Alta *</label>
+            <input type="date" id="fechaAlta" v-model="formFechaAlta" required />
+          </div>
+
+          <div class="form-group">
+            <label for="estado">Estado *</label>
+            <select id="estado" v-model="formEstado">
+              <option value="Activo">Activo</option>
+              <option value="Inactivo">Inactivo</option>
+            </select>
+          </div>
+
+          <!-- Ajax Plan Selection Search inside Form -->
+          <div class="form-group relative">
+            <label>Plan *</label>
+            
+            <!-- Plan Selected Tag -->
+            <div v-if="selectedPlan" class="selected-plan-box">
+              <span class="selected-plan-name">{{ selectedPlan.nombre }}</span>
+              <button type="button" @click="clearSelectedPlan" class="btn-clear-plan" title="Cambiar plan">✕</button>
+            </div>
+
+            <!-- Search input if no plan is selected -->
+            <div v-else class="plan-search-wrapper">
+              <input
+                type="text"
+                v-model="planSearchQuery"
+                @input="onPlanSearchInput"
+                placeholder="Escriba al menos 2 letras del plan..."
+              />
+              <div v-if="showPlanSuggestions" class="suggestions-list">
+                <div
+                  v-for="plan in planSuggestions"
+                  :key="plan.id"
+                  @click="selectPlan(plan)"
+                  class="suggestion-item"
+                >
+                  <span class="sug-name">{{ plan.nombre }}</span>
+                  <span class="sug-price">${{ plan.precioMensual }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-buttons">
+            <button type="submit" class="btn btn-primary">
+              {{ isEditing ? 'Guardar Cambios' : 'Registrar Socio' }}
+            </button>
+            <button type="button" @click="closeDrawer" class="btn btn-secondary">
+              Cancelar
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.socios-container {
+  width: 100%;
+  max-width: 1350px;
+  margin: 0 auto;
+  padding: 40px 20px;
+  text-align: left;
+  box-sizing: border-box;
+}
+
+.header {
+  margin-bottom: 30px;
+  border-bottom: 2px solid var(--border);
+  padding-bottom: 20px;
+}
+
+.subtitle {
+  color: var(--text);
+  font-size: 16px;
+  margin-top: 4px;
+}
+
+.workspace {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.main-content {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: var(--shadow);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.filters-card {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15px;
+  margin-bottom: 24px;
+  align-items: center;
+}
+
+.filter-group {
+  min-width: 240px;
+}
+
+.flex-grow {
+  flex-grow: 1;
+}
+
+.filter-group input, .filter-group select {
+  width: 100%;
+  padding: 12px 14px;
+  font-size: 15px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  outline: none;
+  background-color: transparent;
+  box-sizing: border-box;
+  color: inherit;
+}
+
+.filter-group input:focus, .filter-group select:focus {
+  border-color: var(--accent);
+}
+
+.filter-buttons {
+  display: flex;
+  gap: 10px;
+}
+
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 20px;
+  font-size: 15px; /* Neater typography */
+}
+
+.data-table th, .data-table td {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.data-table td {
+  color: var(--text-h);
+}
+
+.data-table th {
+  font-weight: 600;
+  color: var(--text-h);
+  background-color: var(--code-bg);
+}
+
+.font-bold {
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.plan-tag {
+  background-color: var(--accent-bg);
+  color: var(--accent);
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.inactive-row {
+  opacity: 0.65;
+  background-color: rgba(0, 0, 0, 0.01);
+}
+
+.empty-state {
+  text-align: center;
+  padding: 45px;
+  color: var(--text);
+  font-style: italic;
+}
+
+.badge {
+  display: inline-block;
+  padding: 5px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 30px;
+}
+
+.badge-active {
+  background-color: rgba(46, 204, 113, 0.15);
+  color: #27ae60;
+  border: 1px solid rgba(46, 204, 113, 0.3);
+}
+
+.badge-inactive {
+  background-color: rgba(231, 76, 60, 0.15);
+  color: #c0392b;
+  border: 1px solid rgba(231, 76, 60, 0.3);
+}
+
+.actions-col {
+  width: 160px;
+}
+
+.actions-cell {
+  display: flex;
+  gap: 8px;
+}
+
+/* Centered Floating Modal Dialog styles */
+.modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(5px);
+  z-index: 1000;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+}
+
+.modal-panel {
+  background-color: var(--code-bg);
+  width: 480px;
+  max-width: 90vw;
+  max-height: 85vh;
+  box-shadow: var(--shadow);
+  padding: 30px;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  position: relative;
+  z-index: 1001;
+  text-align: left;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 25px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 15px;
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 22px;
+  color: var(--text-h);
+}
+
+.btn-close-modal {
+  background: transparent;
+  border: none;
+  font-size: 20px;
+  color: var(--text);
+  cursor: pointer;
+  padding: 4px;
+}
+
+.btn-close-modal:hover {
+  color: var(--neon);
+}
+
+.modal-form {
+  display: flex;
+  flex-direction: column;
+}
+
+.form-group {
+  margin-bottom: 18px;
+}
+
+.relative {
+  position: relative;
+}
+
+.form-group label {
+  display: block;
+  font-weight: 500;
+  margin-bottom: 6px;
+  font-size: 14px;
+  color: var(--text-h);
+}
+
+.form-group input, .form-group textarea, .form-group select {
+  width: 100%;
+  padding: 11px;
+  font-size: 15px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  outline: none;
+  background-color: transparent;
+  box-sizing: border-box;
+  color: inherit;
+}
+
+.form-group input:focus, .form-group select:focus {
+  border-color: var(--accent);
+}
+
+.form-buttons {
+  display: flex;
+  gap: 12px;
+  margin-top: 25px;
+}
+
+/* Selected Plan Box */
+.selected-plan-box {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 14px;
+}
+
+.selected-plan-name {
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.btn-clear-plan {
+  background: transparent;
+  border: none;
+  color: #c0392b;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+/* Plan Suggestions */
+.plan-search-wrapper {
+  position: relative;
+}
+
+.suggestions-list {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background-color: var(--bg);
+  border: 1px solid var(--border);
+  border-top: none;
+  border-radius: 0 0 8px 8px;
+  z-index: 10;
+  max-height: 200px;
+  overflow-y: auto;
+  box-shadow: var(--shadow);
+}
+
+.suggestion-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 14px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+}
+
+.suggestion-item:last-child {
+  border-bottom: none;
+}
+
+.suggestion-item:hover {
+  background-color: var(--code-bg);
+}
+
+.sug-name {
+  font-weight: 500;
+  color: var(--text-h);
+}
+
+.sug-price {
+  color: var(--text);
+  font-size: 13px;
+}
+
+/* Buttons */
+.btn {
+  padding: 11px 20px;
+  font-size: 15px;
+  font-weight: 500;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 13px;
+  border-radius: 6px;
+}
+
+.btn-primary {
+  background-color: var(--accent);
+  color: #fff;
+}
+
+.btn-primary:hover {
+  filter: brightness(0.9);
+}
+
+.btn-secondary {
+  background-color: transparent;
+  border-color: var(--border);
+  color: var(--text-h);
+}
+
+.btn-secondary:hover {
+  background-color: var(--code-bg);
+}
+
+.btn-edit {
+  background-color: rgba(52, 152, 219, 0.15);
+  color: #2980b9;
+  border: 1px solid rgba(52, 152, 219, 0.3);
+}
+
+.btn-edit:hover {
+  background-color: #2980b9;
+  color: #fff;
+}
+
+.btn-status-inactive {
+  background-color: rgba(231, 76, 60, 0.15);
+  color: #c0392b;
+  border: 1px solid rgba(231, 76, 60, 0.3);
+}
+
+.btn-status-inactive:hover {
+  background-color: #c0392b;
+  color: #fff;
+}
+
+.btn-status-active {
+  background-color: rgba(46, 204, 113, 0.15);
+  color: #27ae60;
+  border: 1px solid rgba(46, 204, 113, 0.3);
+}
+
+.btn-status-active:hover {
+  background-color: #27ae60;
+  color: #fff;
+}
+
+/* Pagination */
+.pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 20px;
+}
+
+.page-info {
+  font-size: 14px;
+  color: var(--text);
+}
+
+.btn-page {
+  padding: 6px 14px;
+  font-size: 14px;
+  border-color: var(--border);
+  background: transparent;
+  color: var(--text-h);
+}
+
+.btn-page:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Errors */
+.error-alert {
+  background-color: rgba(231, 76, 60, 0.1);
+  border: 1px solid rgba(231, 76, 60, 0.3);
+  color: #c0392b;
+  padding: 16px;
+  border-radius: 8px;
+  margin-bottom: 24px;
+  font-size: 15px;
+}
+
+.error-alert strong {
+  display: block;
+  margin-bottom: 8px;
+}
+
+.error-alert ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+/* Empty State Card styling */
+.empty-state-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  background-color: var(--code-bg);
+  color: var(--text);
+  text-align: center;
+  margin-top: 10px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.empty-icon {
+  font-size: 36px;
+  margin-bottom: 12px;
+}
+
+.empty-text {
+  font-size: 16px;
+  margin: 0;
+  font-style: italic;
+}
+</style>

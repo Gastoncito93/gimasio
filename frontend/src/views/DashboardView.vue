@@ -8,6 +8,10 @@ const user = authService.getUsuario() || { nombre: 'Usuario', rol: 'Ninguno' };
 const goToPlanes = () => {
   router.push('/planes');
 };
+
+const goToSocios = () => {
+  router.push('/socios');
+};
 </script>
 
 <template>
@@ -21,11 +25,16 @@ const goToPlanes = () => {
       <div class="welcome-text">
         <h2>¡Hola, {{ user.nombre || user.username }}!</h2>
         <p>Tu rol de acceso actual es: <strong>{{ user.rol }}</strong></p>
-        <p class="desc">Usa el menú lateral o el botón de abajo para comenzar a administrar los planes del gimnasio.</p>
+        <p class="desc">Usa el menú lateral o los botones para administrar planes y socios del gimnasio.</p>
       </div>
-      <button @click="goToPlanes" class="btn-primary-dashboard">
-        Administrar Planes
-      </button>
+      <div class="dashboard-actions">
+        <button @click="goToPlanes" class="btn-primary-dashboard">
+          Administrar Planes
+        </button>
+        <button @click="goToSocios" class="btn-primary-dashboard btn-secondary-dash">
+          Administrar Socios
+        </button>
+      </div>
     </div>
   </div>
 </template>
@@ -101,5 +110,21 @@ const goToPlanes = () => {
 
 .btn-primary-dashboard:hover {
   opacity: 0.9;
+}
+
+.dashboard-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.btn-secondary-dash {
+  background-color: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-h);
+}
+
+.btn-secondary-dash:hover {
+  background-color: var(--code-bg);
 }
 </style>

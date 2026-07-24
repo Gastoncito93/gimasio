@@ -58,6 +58,7 @@ builder.Services.AddAuthorization();
 // Registrar servicios de negocio
 builder.Services.AddScoped<IPlanService, PlanService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<ISocioService, SocioService>();
 
 var app = builder.Build();
 

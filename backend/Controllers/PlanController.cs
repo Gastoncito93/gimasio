@@ -24,6 +24,17 @@ public class PlanController : ControllerBase
         return Ok(result);
     }
 
+    [HttpGet("buscar")]
+    public async Task<IActionResult> Buscar([FromQuery] string q = "", [FromQuery] int limit = 10)
+    {
+        if (string.IsNullOrWhiteSpace(q) || q.Trim().Length < 2)
+        {
+            return BadRequest(new { errors = new[] { "La consulta de búsqueda debe tener al menos 2 caracteres." } });
+        }
+        var result = await _planService.BuscarAsync(q, limit);
+        return Ok(result);
+    }
+
     [HttpGet("{id:int}")]
     public async Task<IActionResult> GetById(int id)
     {

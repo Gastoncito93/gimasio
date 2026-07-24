@@ -25,6 +25,9 @@ const onLogout = () => {
         <router-link to="/planes" class="nav-item" active-class="active">
           Planes
         </router-link>
+        <router-link to="/socios" class="nav-item" active-class="active">
+          Socios
+        </router-link>
       </nav>
 
       <div class="user-profile">
@@ -47,13 +50,13 @@ const onLogout = () => {
 <style scoped>
 .layout-container {
   display: grid;
-  grid-template-columns: 260px 1fr;
+  grid-template-columns: 260px minmax(0, 1fr);
   min-height: 100vh;
 }
 
 @media (max-width: 768px) {
   .layout-container {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
   .sidebar {
     height: auto !important;
@@ -107,9 +110,9 @@ const onLogout = () => {
 }
 
 .nav-item.active {
-  background-color: var(--accent-bg);
-  color: var(--accent);
-  border: 1px solid var(--accent-border);
+  background-color: var(--neon-bg);
+  color: var(--neon);
+  border: 1px solid var(--neon-border);
 }
 
 .user-profile {
@@ -155,5 +158,7 @@ const onLogout = () => {
 .main-content {
   background-color: var(--bg);
   min-height: 100vh;
+  min-width: 0;
+  width: 100%;
 }
 </style>

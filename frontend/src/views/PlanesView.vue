@@ -9,13 +9,14 @@ const isAdmin = computed(() => authService.hasRole('Administrador'));
 // State
 const planes = ref([]);
 const currentPage = ref(1);
-const pageSize = ref(5);
+const pageSize = ref(10); // Roomier default page size
 const totalPages = ref(0);
 const totalItems = ref(0);
 const search = ref('');
 const errors = ref([]);
 
-// Form State
+// Form / Drawer State
+const showDrawer = ref(false);
 const isEditing = ref(false);
 const formPlanId = ref(null);
 const formName = ref('');
@@ -78,6 +79,31 @@ const nextPage = () => {
   }
 };
 
+// Open drawer for creating
+const openCreateDrawer = () => {
+  resetForm();
+  showDrawer.value = true;
+};
+
+// Open form for editing
+const editPlan = (plan) => {
+  if (!isAdmin.value) return;
+  errors.value = [];
+  isEditing.value = true;
+  formPlanId.value = plan.id;
+  formName.value = plan.nombre;
+  formDescription.value = plan.descripcion || '';
+  formPrice.value = plan.precioMensual;
+  formStatus.value = plan.estado;
+  showDrawer.value = true;
+};
+
+// Close drawer
+const closeDrawer = () => {
+  showDrawer.value = false;
+  resetForm();
+};
+
 // Submit form (create or update)
 const onSubmit = async () => {
   if (!isAdmin.value) return;
@@ -95,7 +121,7 @@ const onSubmit = async () => {
     } else {
       await planService.create(payload);
     }
-    resetForm();
+    closeDrawer();
     fetchPlanes();
   } catch (err) {
     handleError(err);
@@ -113,18 +139,6 @@ const toggleStatus = async (plan) => {
   } catch (err) {
     handleError(err);
   }
-};
-
-// Open form for editing
-const editPlan = (plan) => {
-  if (!isAdmin.value) return;
-  errors.value = [];
-  isEditing.value = true;
-  formPlanId.value = plan.id;
-  formName.value = plan.nombre;
-  formDescription.value = plan.descripcion || '';
-  formPrice.value = plan.precioMensual;
-  formStatus.value = plan.estado;
 };
 
 // Reset form to default values
@@ -159,8 +173,8 @@ onMounted(() => {
       </ul>
     </div>
 
-    <div :class="['workspace', { 'admin-grid': isAdmin }]">
-      <!-- Left side: Table and Filters -->
+    <!-- Main Workspace (Takes 100% width) -->
+    <div class="workspace">
       <div class="main-content">
         <div class="table-actions">
           <div class="search-box">
@@ -171,10 +185,13 @@ onMounted(() => {
               placeholder="Buscar por nombre o descripción..."
             />
           </div>
-          <button @click="clearSearch" class="btn btn-secondary">Limpiar búsqueda</button>
+          <div class="filter-buttons">
+            <button @click="clearSearch" class="btn btn-secondary">Limpiar búsqueda</button>
+            <button v-if="isAdmin" @click="openCreateDrawer" class="btn btn-primary">Nuevo Plan</button>
+          </div>
         </div>
 
-        <div class="table-responsive">
+        <div v-if="planes.length > 0" class="table-responsive">
           <table class="data-table">
             <thead>
               <tr>
@@ -205,11 +222,13 @@ onMounted(() => {
                   </button>
                 </td>
               </tr>
-              <tr v-if="planes.length === 0">
-                <td :colspan="isAdmin ? 5 : 4" class="empty-state">No se encontraron planes registrados.</td>
-              </tr>
             </tbody>
           </table>
+        </div>
+
+        <div v-else class="empty-state-card">
+          <span class="empty-icon">🔍</span>
+          <p class="empty-text">No se encontraron planes registrados.</p>
         </div>
 
         <!-- Pagination -->
@@ -219,11 +238,17 @@ onMounted(() => {
           <button @click="nextPage" :disabled="currentPage === totalPages" class="btn btn-page">Siguiente</button>
         </div>
       </div>
+    </div>
 
-      <!-- Right side: Form (Create / Edit) - Visible only for Admin -->
-      <div v-if="isAdmin" class="form-container">
-        <h2>{{ isEditing ? `Editar Plan #${formPlanId}` : 'Nuevo Plan' }}</h2>
-        <form @submit.prevent="onSubmit">
+    <!-- Floating Centered Modal Dialog for Create / Edit Form (Admin Only) -->
+    <div v-if="showDrawer && isAdmin" class="modal-backdrop" @click.self="closeDrawer">
+      <div class="modal-panel">
+        <div class="modal-header">
+          <h2>{{ isEditing ? `Editar Plan #${formPlanId}` : 'Nuevo Plan' }}</h2>
+          <button @click="closeDrawer" class="btn-close-modal">✕</button>
+        </div>
+
+        <form @submit.prevent="onSubmit" class="modal-form">
           <div class="form-group">
             <label for="name">Nombre del Plan *</label>
             <input type="text" id="name" v-model="formName" required maxlength="100" placeholder="Ej. Plan Pase Libre" />
@@ -251,7 +276,7 @@ onMounted(() => {
             <button type="submit" class="btn btn-primary">
               {{ isEditing ? 'Guardar Cambios' : 'Crear Plan' }}
             </button>
-            <button type="button" @click="resetForm" class="btn btn-secondary">
+            <button type="button" @click="closeDrawer" class="btn btn-secondary">
               Cancelar
             </button>
           </div>
@@ -263,7 +288,8 @@ onMounted(() => {
 
 <style scoped>
 .planes-container {
-  max-width: 1200px;
+  width: 100%;
+  max-width: 1350px;
   margin: 0 auto;
   padding: 40px 20px;
   text-align: left;
@@ -283,20 +309,8 @@ onMounted(() => {
 }
 
 .workspace {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 30px;
-  align-items: start;
-}
-
-.workspace.admin-grid {
-  grid-template-columns: 1fr 380px;
-}
-
-@media (max-width: 900px) {
-  .workspace.admin-grid {
-    grid-template-columns: 1fr;
-  }
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .main-content {
@@ -305,13 +319,15 @@ onMounted(() => {
   border-radius: 12px;
   padding: 24px;
   box-shadow: var(--shadow);
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .table-actions {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 24px;
   gap: 15px;
 }
 
@@ -321,17 +337,23 @@ onMounted(() => {
 
 .search-box input {
   width: 100%;
-  padding: 10px 14px;
+  padding: 12px 14px;
   font-size: 15px;
   border: 1px solid var(--border);
   border-radius: 8px;
   outline: none;
-  transition: border-color 0.2s;
+  background-color: transparent;
   box-sizing: border-box;
+  color: inherit;
 }
 
 .search-box input:focus {
   border-color: var(--accent);
+}
+
+.filter-buttons {
+  display: flex;
+  gap: 10px;
 }
 
 .table-responsive {
@@ -347,9 +369,14 @@ onMounted(() => {
 }
 
 .data-table th, .data-table td {
-  padding: 12px 16px;
+  padding: 14px 18px;
   border-bottom: 1px solid var(--border);
   text-align: left;
+  white-space: nowrap;
+}
+
+.data-table td {
+  color: var(--text-h);
 }
 
 .data-table th {
@@ -365,19 +392,19 @@ onMounted(() => {
 
 .inactive-row {
   opacity: 0.65;
-  background-color: rgba(0,0,0,0.01);
+  background-color: rgba(0, 0, 0, 0.01);
 }
 
 .empty-state {
   text-align: center;
-  padding: 40px;
+  padding: 45px;
   color: var(--text);
   font-style: italic;
 }
 
 .badge {
   display: inline-block;
-  padding: 4px 10px;
+  padding: 5px 12px;
   font-size: 13px;
   font-weight: 500;
   border-radius: 30px;
@@ -396,7 +423,7 @@ onMounted(() => {
 }
 
 .actions-col {
-  width: 180px;
+  width: 160px;
 }
 
 .actions-cell {
@@ -404,25 +431,75 @@ onMounted(() => {
   gap: 8px;
 }
 
-/* Forms */
-.form-container {
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 24px;
-  box-shadow: var(--shadow);
+/* Centered Floating Modal Dialog styles */
+.modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(5px);
+  z-index: 1000;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
 }
 
-.form-container h2 {
-  margin-top: 0;
-  margin-bottom: 20px;
-  font-size: 20px;
+.modal-panel {
+  background-color: var(--code-bg);
+  width: 480px;
+  max-width: 90vw;
+  max-height: 85vh;
+  box-shadow: var(--shadow);
+  padding: 30px;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  position: relative;
+  z-index: 1001;
+  text-align: left;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 25px;
   border-bottom: 1px solid var(--border);
-  padding-bottom: 10px;
+  padding-bottom: 15px;
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 22px;
+  color: var(--text-h);
+}
+
+.btn-close-modal {
+  background: transparent;
+  border: none;
+  font-size: 20px;
+  color: var(--text);
+  cursor: pointer;
+  padding: 4px;
+}
+
+.btn-close-modal:hover {
+  color: var(--neon);
+}
+
+.modal-form {
+  display: flex;
+  flex-direction: column;
 }
 
 .form-group {
-  margin-bottom: 16px;
+  margin-bottom: 18px;
 }
 
 .form-group label {
@@ -435,7 +512,7 @@ onMounted(() => {
 
 .form-group input, .form-group textarea, .form-group select {
   width: 100%;
-  padding: 10px;
+  padding: 11px;
   font-size: 15px;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -450,19 +527,19 @@ onMounted(() => {
 }
 
 .form-group textarea {
-  height: 80px;
+  height: 100px;
   resize: vertical;
 }
 
 .form-buttons {
   display: flex;
-  gap: 10px;
-  margin-top: 24px;
+  gap: 12px;
+  margin-top: 25px;
 }
 
 /* Buttons */
 .btn {
-  padding: 10px 18px;
+  padding: 11px 20px;
   font-size: 15px;
   font-weight: 500;
   border: 1px solid transparent;
@@ -577,5 +654,33 @@ onMounted(() => {
 .error-alert ul {
   margin: 0;
   padding-left: 20px;
+}
+
+/* Empty State Card styling */
+.empty-state-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  background-color: var(--code-bg);
+  color: var(--text);
+  text-align: center;
+  margin-top: 10px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.empty-icon {
+  font-size: 36px;
+  margin-bottom: 12px;
+}
+
+.empty-text {
+  font-size: 16px;
+  margin: 0;
+  font-style: italic;
 }
 </style>

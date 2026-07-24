@@ -166,6 +166,30 @@ public class PlanService : IPlanService
         return errors;
     }
 
+    public async Task<IEnumerable<PlanSearchResultDto>> BuscarAsync(string q, int limit)
+    {
+        if (string.IsNullOrWhiteSpace(q) || q.Trim().Length < 2)
+        {
+            return Enumerable.Empty<PlanSearchResultDto>();
+        }
+
+        limit = limit < 1 ? 10 : limit;
+        var searchLower = q.Trim().ToLower();
+
+        return await _context.Planes
+            .AsNoTracking()
+            .Where(p => p.Estado == "Activo" && p.Nombre.ToLower().Contains(searchLower))
+            .OrderBy(p => p.Id)
+            .Take(limit)
+            .Select(p => new PlanSearchResultDto
+            {
+                Id = p.Id,
+                Nombre = p.Nombre,
+                PrecioMensual = p.PrecioMensual
+            })
+            .ToListAsync();
+    }
+
     private static PlanResponseDto MapToDto(Plan plan)
     {
         return new PlanResponseDto

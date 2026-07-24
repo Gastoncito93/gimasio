@@ -3,6 +3,7 @@ import authService from '../services/authService';
 import LoginView from '../views/LoginView.vue';
 import DashboardView from '../views/DashboardView.vue';
 import PlanesView from '../views/PlanesView.vue';
+import SociosView from '../views/SociosView.vue';
 import AppLayout from '../components/AppLayout.vue';
 
 const routes = [
@@ -29,6 +30,11 @@ const routes = [
         path: 'planes',
         name: 'Planes',
         component: PlanesView,
+      },
+      {
+        path: 'socios',
+        name: 'Socios',
+        component: SociosView,
       },
     ],
   },

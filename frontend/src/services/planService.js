@@ -31,4 +31,14 @@ export default {
     const response = await api.patch(`/plan/${id}/estado`, { estado });
     return response.data;
   },
+
+  async buscar(q, limit = 10) {
+    const response = await api.get('/plan/buscar', {
+      params: {
+        q,
+        limit,
+      },
+    });
+    return response.data;
+  },
 };

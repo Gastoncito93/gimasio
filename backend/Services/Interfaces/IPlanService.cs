@@ -10,4 +10,5 @@ public interface IPlanService
     Task<(bool Success, PlanResponseDto? Data, List<string> Errors)> CreateAsync(PlanCreateUpdateDto dto);
     Task<(bool Success, PlanResponseDto? Data, List<string> Errors, bool NotFound)> UpdateAsync(int id, PlanCreateUpdateDto dto);
     Task<(bool Success, PlanResponseDto? Data, List<string> Errors, bool NotFound)> ChangeEstadoAsync(int id, PlanEstadoUpdateDto dto);
+    Task<IEnumerable<PlanSearchResultDto>> BuscarAsync(string q, int limit);
 }
