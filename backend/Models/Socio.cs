@@ -9,6 +9,7 @@ public class Socio
     public string? Email { get; set; }
     public DateTime FechaAlta { get; set; } = DateTime.UtcNow;
     public string Estado { get; set; } = "Activo";
+    public string? Observacion { get; set; }
 
     public int IdPlan { get; set; }
     public Plan Plan { get; set; } = null!;

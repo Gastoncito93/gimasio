@@ -24,4 +24,7 @@ public class SocioCreateUpdateDto
 
     [Required(ErrorMessage = "El plan es obligatorio.")]
     public int IdPlan { get; set; }
+
+    [MaxLength(500, ErrorMessage = "La observación no puede superar los 500 caracteres.")]
+    public string? Observacion { get; set; }
 }

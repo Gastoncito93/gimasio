@@ -4,6 +4,7 @@ import LoginView from '../views/LoginView.vue';
 import DashboardView from '../views/DashboardView.vue';
 import PlanesView from '../views/PlanesView.vue';
 import SociosView from '../views/SociosView.vue';
+import CuotasView from '../views/CuotasView.vue';
 import AppLayout from '../components/AppLayout.vue';
 
 const routes = [
@@ -35,6 +36,11 @@ const routes = [
         path: 'socios',
         name: 'Socios',
         component: SociosView,
+      },
+      {
+        path: 'cuotas',
+        name: 'Cuotas',
+        component: CuotasView,
       },
     ],
   },

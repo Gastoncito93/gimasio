@@ -64,7 +64,8 @@ public class SocioService : ISocioService
                 FechaAlta = s.FechaAlta,
                 Estado = s.Estado,
                 IdPlan = s.IdPlan,
-                PlanNombre = s.Plan.Nombre
+                PlanNombre = s.Plan.Nombre,
+                Observacion = s.Observacion
             })
             .ToListAsync();
 
@@ -100,7 +101,8 @@ public class SocioService : ISocioService
             FechaAlta = socio.FechaAlta,
             Estado = socio.Estado,
             IdPlan = socio.IdPlan,
-            PlanNombre = socio.Plan.Nombre
+            PlanNombre = socio.Plan.Nombre,
+            Observacion = socio.Observacion
         };
     }
 
@@ -146,7 +148,8 @@ public class SocioService : ISocioService
             Email = string.IsNullOrWhiteSpace(dto.Email) ? null : dto.Email.Trim(),
             FechaAlta = dto.FechaAlta,
             Estado = string.IsNullOrWhiteSpace(dto.Estado) ? "Activo" : dto.Estado.Trim(),
-            IdPlan = dto.IdPlan
+            IdPlan = dto.IdPlan,
+            Observacion = string.IsNullOrWhiteSpace(dto.Observacion) ? null : dto.Observacion.Trim()
         };
 
         _context.Socios.Add(socio);
@@ -177,6 +180,7 @@ public class SocioService : ISocioService
         socio.FechaAlta = dto.FechaAlta;
         socio.Estado = string.IsNullOrWhiteSpace(dto.Estado) ? "Activo" : dto.Estado.Trim();
         socio.IdPlan = dto.IdPlan;
+        socio.Observacion = string.IsNullOrWhiteSpace(dto.Observacion) ? null : dto.Observacion.Trim();
 
         await _context.SaveChangesAsync();
 

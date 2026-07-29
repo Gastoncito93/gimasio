@@ -15,6 +15,7 @@ public class SocioConfiguration : IEntityTypeConfiguration<Socio>
         builder.Property(s => s.Telefono).HasMaxLength(30);
         builder.Property(s => s.Email).HasMaxLength(100);
         builder.Property(s => s.Estado).IsRequired().HasMaxLength(20);
+        builder.Property(s => s.Observacion).HasMaxLength(500);
 
         builder.HasOne(s => s.Plan)
             .WithMany(p => p.Socios)

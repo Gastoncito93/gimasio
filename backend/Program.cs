@@ -59,6 +59,7 @@ builder.Services.AddAuthorization();
 builder.Services.AddScoped<IPlanService, PlanService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ISocioService, SocioService>();
+builder.Services.AddScoped<ICuotaService, CuotaService>();
 
 var app = builder.Build();
 

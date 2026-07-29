@@ -28,6 +28,9 @@ const onLogout = () => {
         <router-link to="/socios" class="nav-item" active-class="active">
           Socios
         </router-link>
+        <router-link to="/cuotas" class="nav-item" active-class="active">
+          Cuotas
+        </router-link>
       </nav>
 
       <div class="user-profile">

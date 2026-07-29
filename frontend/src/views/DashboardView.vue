@@ -12,6 +12,10 @@ const goToPlanes = () => {
 const goToSocios = () => {
   router.push('/socios');
 };
+
+const goToCuotas = () => {
+  router.push('/cuotas');
+};
 </script>
 
 <template>
@@ -25,7 +29,7 @@ const goToSocios = () => {
       <div class="welcome-text">
         <h2>¡Hola, {{ user.nombre || user.username }}!</h2>
         <p>Tu rol de acceso actual es: <strong>{{ user.rol }}</strong></p>
-        <p class="desc">Usa el menú lateral o los botones para administrar planes y socios del gimnasio.</p>
+        <p class="desc">Usa el menú lateral o los botones para administrar planes, socios y cuotas del gimnasio.</p>
       </div>
       <div class="dashboard-actions">
         <button @click="goToPlanes" class="btn-primary-dashboard">
@@ -33,6 +37,9 @@ const goToSocios = () => {
         </button>
         <button @click="goToSocios" class="btn-primary-dashboard btn-secondary-dash">
           Administrar Socios
+        </button>
+        <button @click="goToCuotas" class="btn-primary-dashboard btn-secondary-dash">
+          Administrar Cuotas
         </button>
       </div>
     </div>

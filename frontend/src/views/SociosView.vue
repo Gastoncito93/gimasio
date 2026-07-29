@@ -28,12 +28,40 @@ const formTelefono = ref('');
 const formEmail = ref('');
 const formFechaAlta = ref(new Date().toISOString().substring(0, 10));
 const formEstado = ref('Activo');
+const formObservacion = ref('');
 
-// Plan Search inside Form State
-const selectedPlan = ref(null); // { id, nombre, precioMensual }
-const planSearchQuery = ref('');
-const planSuggestions = ref([]);
-const showPlanSuggestions = ref(false);
+// Plan dropdown state
+const activePlans = ref([]);
+const formIdPlan = ref('');
+
+const loadActivePlans = async () => {
+  try {
+    const response = await planService.getAll(1, 100);
+    activePlans.value = response.data.filter(p => p.estado === 'Activo');
+  } catch (err) {
+    console.error('Error cargando planes activos', err);
+  }
+};
+
+const availablePlans = computed(() => {
+  if (isEditing.value && formSocioId.value) {
+    const currentSocio = socios.value.find(s => s.id === formSocioId.value);
+    if (currentSocio) {
+      const exists = activePlans.value.some(p => p.id === currentSocio.idPlan);
+      if (!exists) {
+        return [
+          ...activePlans.value,
+          {
+            id: currentSocio.idPlan,
+            nombre: `${currentSocio.planNombre} (Inactivo)`,
+            estado: 'Inactivo'
+          }
+        ];
+      }
+    }
+  }
+  return activePlans.value;
+});
 
 // Load data
 const fetchSocios = async () => {
@@ -62,34 +90,6 @@ const handleError = (err) => {
   } else {
     errors.value = ['Ha ocurrido un error inesperado al conectar con el servidor.'];
   }
-};
-
-// Search plans by Ajax inside the form
-const onPlanSearchInput = async () => {
-  if (planSearchQuery.value.trim().length < 2) {
-    planSuggestions.value = [];
-    showPlanSuggestions.value = false;
-    return;
-  }
-
-  try {
-    const result = await planService.buscar(planSearchQuery.value, 10);
-    planSuggestions.value = result;
-    showPlanSuggestions.value = result.length > 0;
-  } catch (err) {
-    console.error('Error buscando planes', err);
-  }
-};
-
-const selectPlan = (plan) => {
-  selectedPlan.value = plan;
-  planSearchQuery.value = '';
-  planSuggestions.value = [];
-  showPlanSuggestions.value = false;
-};
-
-const clearSelectedPlan = () => {
-  selectedPlan.value = null;
 };
 
 // Filter search & reset
@@ -147,11 +147,8 @@ const editSocio = (socio) => {
   formEmail.value = socio.email || '';
   formFechaAlta.value = socio.fechaAlta.substring(0, 10);
   formEstado.value = socio.estado;
-  selectedPlan.value = {
-    id: socio.idPlan,
-    nombre: socio.planNombre,
-    precioMensual: 0
-  };
+  formIdPlan.value = socio.idPlan;
+  formObservacion.value = socio.observacion || '';
   showDrawer.value = true;
 };
 
@@ -166,7 +163,7 @@ const onSubmit = async () => {
   if (!formNombreCompleto.value.trim()) {
     errors.value.push('El nombre completo es obligatorio.');
   }
-  if (!selectedPlan.value) {
+  if (!formIdPlan.value) {
     errors.value.push('Debe seleccionar un plan válido.');
   }
   if (!formFechaAlta.value) {
@@ -188,7 +185,8 @@ const onSubmit = async () => {
     email: formEmail.value.trim() || null,
     fechaAlta: new Date(formFechaAlta.value).toISOString(),
     estado: formEstado.value,
-    idPlan: selectedPlan.value.id
+    idPlan: Number(formIdPlan.value),
+    observacion: formObservacion.value.trim() || null
   };
 
   try {
@@ -233,10 +231,8 @@ const resetForm = () => {
   formEmail.value = '';
   formFechaAlta.value = new Date().toISOString().substring(0, 10);
   formEstado.value = 'Activo';
-  selectedPlan.value = null;
-  planSearchQuery.value = '';
-  planSuggestions.value = [];
-  showPlanSuggestions.value = false;
+  formIdPlan.value = '';
+  formObservacion.value = '';
   errors.value = [];
 };
 
@@ -249,6 +245,7 @@ const formatDate = (dateStr) => {
 
 onMounted(() => {
   fetchSocios();
+  loadActivePlans();
 });
 </script>
 
@@ -396,36 +393,21 @@ onMounted(() => {
             </select>
           </div>
 
-          <!-- Ajax Plan Selection Search inside Form -->
-          <div class="form-group relative">
-            <label>Plan *</label>
-            
-            <!-- Plan Selected Tag -->
-            <div v-if="selectedPlan" class="selected-plan-box">
-              <span class="selected-plan-name">{{ selectedPlan.nombre }}</span>
-              <button type="button" @click="clearSelectedPlan" class="btn-clear-plan" title="Cambiar plan">✕</button>
-            </div>
+          <!-- Plan Dropdown Selection -->
+          <div class="form-group">
+            <label for="idPlan">Plan *</label>
+            <select id="idPlan" v-model="formIdPlan" required>
+              <option value="" disabled>-- Seleccione un plan --</option>
+              <option v-for="plan in availablePlans" :key="plan.id" :value="plan.id">
+                {{ plan.nombre }}
+              </option>
+            </select>
+          </div>
 
-            <!-- Search input if no plan is selected -->
-            <div v-else class="plan-search-wrapper">
-              <input
-                type="text"
-                v-model="planSearchQuery"
-                @input="onPlanSearchInput"
-                placeholder="Escriba al menos 2 letras del plan..."
-              />
-              <div v-if="showPlanSuggestions" class="suggestions-list">
-                <div
-                  v-for="plan in planSuggestions"
-                  :key="plan.id"
-                  @click="selectPlan(plan)"
-                  class="suggestion-item"
-                >
-                  <span class="sug-name">{{ plan.nombre }}</span>
-                  <span class="sug-price">${{ plan.precioMensual }}</span>
-                </div>
-              </div>
-            </div>
+          <!-- Observaciones -->
+          <div class="form-group">
+            <label for="observacion">Observación</label>
+            <textarea id="observacion" v-model="formObservacion" placeholder="Observaciones o notas adicionales del socio..." maxlength="500"></textarea>
           </div>
 
           <div class="form-buttons">
