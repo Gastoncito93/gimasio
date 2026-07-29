@@ -1,0 +1,14 @@
+namespace Backend.DTOs.Progreso;
+
+public class SocioProgresoDto
+{
+    public int Id { get; set; }
+    public int IdSocio { get; set; }
+    public DateTime Fecha { get; set; }
+    public decimal? PesoKg { get; set; }
+    public string? Observaciones { get; set; }
+    public string? RutaFotoFrente { get; set; }
+    public string? RutaFotoPerfil { get; set; }
+    public string? RutaFotoEspalda { get; set; }
+    public DateTime CreadoAt { get; set; }
+}

@@ -11,4 +11,9 @@ public class Usuario
 
     public int IdRol { get; set; }
     public Rol Rol { get; set; } = null!;
+
+    public int? IdActividad { get; set; }
+    public Actividad? Actividad { get; set; }
+
+    public ICollection<Socio> AlumnosComoCoach { get; set; } = new List<Socio>();
 }

@@ -262,3 +262,4 @@ C:\Users\Usuario\OneDrive\Documentos\GitHub\gimnasio\backend\obj\Debug\net9.0\re
 C:\Users\Usuario\OneDrive\Documentos\GitHub\gimnasio\backend\obj\Debug\net9.0\Backend.pdb
 C:\Users\Usuario\OneDrive\Documentos\GitHub\gimnasio\backend\obj\Debug\net9.0\Backend.genruntimeconfig.cache
 C:\Users\Usuario\OneDrive\Documentos\GitHub\gimnasio\backend\obj\Debug\net9.0\ref\Backend.dll
+C:\Users\Usuario\OneDrive\Documentos\GitHub\gimnasio\backend\bin\Debug\net9.0\Backend.staticwebassets.runtime.json

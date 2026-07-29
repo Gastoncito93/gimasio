@@ -289,23 +289,32 @@ onMounted(() => {
 <style scoped>
 .planes-container {
   width: 100%;
-  max-width: 1350px;
+  max-width: 1120px;
   margin: 0 auto;
-  padding: 40px 20px;
+  padding: 28px 24px;
   text-align: left;
   box-sizing: border-box;
 }
 
 .header {
-  margin-bottom: 30px;
-  border-bottom: 2px solid var(--border);
-  padding-bottom: 20px;
+  margin-bottom: 24px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 16px;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+  color: var(--text-h);
 }
 
 .subtitle {
   color: var(--text);
-  font-size: 16px;
+  font-size: 13px;
   margin-top: 4px;
+  opacity: 0.75;
 }
 
 .workspace {

@@ -28,8 +28,10 @@ api.interceptors.response.use(
     if (error.response && error.response.status === 401) {
       localStorage.removeItem('token');
       localStorage.removeItem('usuario');
-      // Redirect using window.location if router is not directly accessible here
-      window.location.href = '/login';
+      // No redirigir si el usuario está en las páginas públicas /login o /register
+      if (window.location.pathname !== '/login' && window.location.pathname !== '/register') {
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error);
   }

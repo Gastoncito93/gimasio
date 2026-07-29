@@ -13,7 +13,8 @@ public class RolConfiguration : IEntityTypeConfiguration<Rol>
 
         builder.HasData(
             new Rol { Id = 1, Nombre = "Administrador" },
-            new Rol { Id = 2, Nombre = "Empleado" }
+            new Rol { Id = 2, Nombre = "Coach" },
+            new Rol { Id = 3, Nombre = "Alumno" }
         );
     }
 }

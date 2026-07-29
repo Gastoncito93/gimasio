@@ -1,0 +1,53 @@
+{
+  "Files": [
+    {
+      "Id": "C:\\Users\\Usuario\\OneDrive\\Documentos\\GitHub\\gimnasio\\backend\\wwwroot\\uploads\\avatares\\19b3a5c71d3949e98704cdf1ae6190ca.jpeg",
+      "PackagePath": "staticwebassets\\uploads\\avatares\\19b3a5c71d3949e98704cdf1ae6190ca.jpeg"
+    },
+    {
+      "Id": "C:\\Users\\Usuario\\OneDrive\\Documentos\\GitHub\\gimnasio\\backend\\wwwroot\\uploads\\progreso\\25618d5e848e4ffe9176f270818050f2.png",
+      "PackagePath": "staticwebassets\\uploads\\progreso\\25618d5e848e4ffe9176f270818050f2.png"
+    },
+    {
+      "Id": "C:\\Users\\Usuario\\OneDrive\\Documentos\\GitHub\\gimnasio\\backend\\wwwroot\\uploads\\progreso\\4632854e6d19476b93ad01633f3f35d4.png",
+      "PackagePath": "staticwebassets\\uploads\\progreso\\4632854e6d19476b93ad01633f3f35d4.png"
+    },
+    {
+      "Id": "C:\\Users\\Usuario\\OneDrive\\Documentos\\GitHub\\gimnasio\\backend\\wwwroot\\uploads\\progreso\\6c00c6aed9574cffa9288e24a82f0814.png",
+      "PackagePath": "staticwebassets\\uploads\\progreso\\6c00c6aed9574cffa9288e24a82f0814.png"
+    },
+    {
+      "Id": "C:\\Users\\Usuario\\OneDrive\\Documentos\\GitHub\\gimnasio\\backend\\wwwroot\\uploads\\progreso\\71a256b1ba474d3b84a3f73bf9162e91.png",
+      "PackagePath": "staticwebassets\\uploads\\progreso\\71a256b1ba474d3b84a3f73bf9162e91.png"
+    },
+    {
+      "Id": "C:\\Users\\Usuario\\OneDrive\\Documentos\\GitHub\\gimnasio\\backend\\wwwroot\\uploads\\progreso\\758d920a22754953b547c28581efa3ef.png",
+      "PackagePath": "staticwebassets\\uploads\\progreso\\758d920a22754953b547c28581efa3ef.png"
+    },
+    {
+      "Id": "C:\\Users\\Usuario\\OneDrive\\Documentos\\GitHub\\gimnasio\\backend\\wwwroot\\uploads\\progreso\\a4e3d9ebfc81439ea6e4626cccda26bc.png",
+      "PackagePath": "staticwebassets\\uploads\\progreso\\a4e3d9ebfc81439ea6e4626cccda26bc.png"
+    },
+    {
+      "Id": "obj\\Debug\\net9.0\\staticwebassets\\msbuild.Backend.Microsoft.AspNetCore.StaticWebAssetEndpoints.props",
+      "PackagePath": "build\\Microsoft.AspNetCore.StaticWebAssetEndpoints.props"
+    },
+    {
+      "Id": "obj\\Debug\\net9.0\\staticwebassets\\msbuild.Backend.Microsoft.AspNetCore.StaticWebAssets.props",
+      "PackagePath": "build\\Microsoft.AspNetCore.StaticWebAssets.props"
+    },
+    {
+      "Id": "obj\\Debug\\net9.0\\staticwebassets\\msbuild.build.Backend.props",
+      "PackagePath": "build\\Backend.props"
+    },
+    {
+      "Id": "obj\\Debug\\net9.0\\staticwebassets\\msbuild.buildMultiTargeting.Backend.props",
+      "PackagePath": "buildMultiTargeting\\Backend.props"
+    },
+    {
+      "Id": "obj\\Debug\\net9.0\\staticwebassets\\msbuild.buildTransitive.Backend.props",
+      "PackagePath": "buildTransitive\\Backend.props"
+    }
+  ],
+  "ElementsToRemove": []
+}

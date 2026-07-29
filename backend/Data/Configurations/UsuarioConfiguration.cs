@@ -19,5 +19,10 @@ public class UsuarioConfiguration : IEntityTypeConfiguration<Usuario>
             .WithMany(r => r.Usuarios)
             .HasForeignKey(u => u.IdRol)
             .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(u => u.Actividad)
+            .WithMany(a => a.Coaches)
+            .HasForeignKey(u => u.IdActividad)
+            .OnDelete(DeleteBehavior.SetNull);
     }
 }

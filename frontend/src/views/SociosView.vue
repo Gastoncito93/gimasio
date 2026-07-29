@@ -3,6 +3,7 @@ import { ref, onMounted, computed } from 'vue';
 import socioService from '../services/socioService';
 import planService from '../services/planService';
 import authService from '../services/authService';
+import api from '../services/api';
 
 // Auth State
 const isAdmin = computed(() => authService.hasRole('Administrador'));
@@ -10,7 +11,7 @@ const isAdmin = computed(() => authService.hasRole('Administrador'));
 // Table / Filter State
 const socios = ref([]);
 const currentPage = ref(1);
-const pageSize = ref(10); // Increased default page size for wider view
+const pageSize = ref(10);
 const totalPages = ref(0);
 const totalItems = ref(0);
 const search = ref('');
@@ -28,11 +29,20 @@ const formTelefono = ref('');
 const formEmail = ref('');
 const formFechaAlta = ref(new Date().toISOString().substring(0, 10));
 const formEstado = ref('Activo');
+const formIdCoach = ref('');
 const formObservacion = ref('');
 
 // Plan dropdown state
 const activePlans = ref([]);
 const formIdPlan = ref('');
+
+// Coaches dropdown state
+const coaches = ref([]);
+
+const cleanCoachName = (name) => {
+  if (!name) return '';
+  return name.replace(/^Coach\s+/i, '');
+};
 
 const loadActivePlans = async () => {
   try {
@@ -40,6 +50,15 @@ const loadActivePlans = async () => {
     activePlans.value = response.data.filter(p => p.estado === 'Activo');
   } catch (err) {
     console.error('Error cargando planes activos', err);
+  }
+};
+
+const loadCoaches = async () => {
+  try {
+    const response = await api.get('/socio/coaches');
+    coaches.value = response.data;
+  } catch (err) {
+    console.error('Error cargando coaches', err);
   }
 };
 
@@ -148,6 +167,7 @@ const editSocio = (socio) => {
   formFechaAlta.value = socio.fechaAlta.substring(0, 10);
   formEstado.value = socio.estado;
   formIdPlan.value = socio.idPlan;
+  formIdCoach.value = socio.idCoach || '';
   formObservacion.value = socio.observacion || '';
   showDrawer.value = true;
 };
@@ -186,6 +206,7 @@ const onSubmit = async () => {
     fechaAlta: new Date(formFechaAlta.value).toISOString(),
     estado: formEstado.value,
     idPlan: Number(formIdPlan.value),
+    idCoach: formIdCoach.value ? Number(formIdCoach.value) : null,
     observacion: formObservacion.value.trim() || null
   };
 
@@ -232,6 +253,7 @@ const resetForm = () => {
   formFechaAlta.value = new Date().toISOString().substring(0, 10);
   formEstado.value = 'Activo';
   formIdPlan.value = '';
+  formIdCoach.value = '';
   formObservacion.value = '';
   errors.value = [];
 };
@@ -246,14 +268,15 @@ const formatDate = (dateStr) => {
 onMounted(() => {
   fetchSocios();
   loadActivePlans();
+  loadCoaches();
 });
 </script>
 
 <template>
   <div class="socios-container">
     <header class="header">
-      <h1>Gestión de Socios</h1>
-      <p class="subtitle">Administración de los socios inscriptos en el gimnasio</p>
+      <h1>Gestión de Alumnos / Socios</h1>
+      <p class="subtitle">Administración de socios e inscripción con asignación de Coach</p>
     </header>
 
     <!-- Error Alerts -->
@@ -264,10 +287,10 @@ onMounted(() => {
       </ul>
     </div>
 
-    <!-- Main Workspace (Wide, 100% width table view) -->
+    <!-- Main Workspace -->
     <div class="workspace">
       <div class="main-content">
-        <!-- Filters Card (No search button, auto reactive filters + New Socio button) -->
+        <!-- Filters Card -->
         <div class="filters-card">
           <div class="filter-group flex-grow">
             <input
@@ -302,6 +325,7 @@ onMounted(() => {
                 <th>Teléfono</th>
                 <th>Email</th>
                 <th>Plan</th>
+                <th>Coach Asignado</th>
                 <th>Fecha Alta</th>
                 <th>Estado</th>
                 <th class="actions-col">Acciones</th>
@@ -315,6 +339,10 @@ onMounted(() => {
                 <td>{{ socio.email || '-' }}</td>
                 <td>
                   <span class="plan-tag">{{ socio.planNombre }}</span>
+                </td>
+                <td>
+                  <span v-if="socio.coachNombre" class="coach-tag">{{ cleanCoachName(socio.coachNombre) }}</span>
+                  <span v-else class="subtle-text">Sin asignación</span>
                 </td>
                 <td>{{ formatDate(socio.fechaAlta) }}</td>
                 <td>
@@ -404,6 +432,22 @@ onMounted(() => {
             </select>
           </div>
 
+          <!-- Coach Dropdown Selection -->
+          <div class="form-group">
+            <label for="idCoach">Coach Asignado (Cupo máx. 20 alumnos)</label>
+            <select id="idCoach" v-model="formIdCoach">
+              <option value="">-- Sin Coach Asignado --</option>
+              <option
+                v-for="c in coaches"
+                :key="c.id"
+                :value="c.id"
+                :disabled="c.cupoCompleto && Number(formIdCoach) !== c.id"
+              >
+                {{ cleanCoachName(c.nombre) }} ({{ c.alumnosActuales }}/20 {{ c.cupoCompleto ? 'COMPLETO' : 'disponibles' }})
+              </option>
+            </select>
+          </div>
+
           <!-- Observaciones -->
           <div class="form-group">
             <label for="observacion">Observación</label>
@@ -427,23 +471,32 @@ onMounted(() => {
 <style scoped>
 .socios-container {
   width: 100%;
-  max-width: 1350px;
+  max-width: 1120px;
   margin: 0 auto;
-  padding: 40px 20px;
+  padding: 28px 24px;
   text-align: left;
   box-sizing: border-box;
 }
 
 .header {
-  margin-bottom: 30px;
-  border-bottom: 2px solid var(--border);
-  padding-bottom: 20px;
+  margin-bottom: 24px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 16px;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+  color: var(--text-h);
 }
 
 .subtitle {
   color: var(--text);
-  font-size: 16px;
+  font-size: 13px;
   margin-top: 4px;
+  opacity: 0.75;
 }
 
 .workspace {
@@ -507,7 +560,7 @@ onMounted(() => {
   width: 100%;
   border-collapse: collapse;
   margin-bottom: 20px;
-  font-size: 15px; /* Neater typography */
+  font-size: 15px;
 }
 
 .data-table th, .data-table td {
@@ -541,16 +594,33 @@ onMounted(() => {
   font-weight: 600;
 }
 
+.coach-tag {
+  background-color: rgba(245, 158, 11, 0.12);
+  color: #d97706;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.subtle-text {
+  color: var(--text);
+  opacity: 0.6;
+  font-style: italic;
+}
+
 .inactive-row {
   opacity: 0.65;
   background-color: rgba(0, 0, 0, 0.01);
 }
 
-.empty-state {
+.empty-state-card {
   text-align: center;
   padding: 45px;
   color: var(--text);
-  font-style: italic;
+  background-color: var(--code-bg);
+  border-radius: 8px;
 }
 
 .badge {
@@ -582,7 +652,6 @@ onMounted(() => {
   gap: 8px;
 }
 
-/* Centered Floating Modal Dialog styles */
 .modal-backdrop {
   position: fixed;
   top: 0;
@@ -653,10 +722,6 @@ onMounted(() => {
   margin-bottom: 18px;
 }
 
-.relative {
-  position: relative;
-}
-
 .form-group label {
   display: block;
   font-weight: 500;
@@ -687,77 +752,6 @@ onMounted(() => {
   margin-top: 25px;
 }
 
-/* Selected Plan Box */
-.selected-plan-box {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background-color: var(--code-bg);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 10px 14px;
-}
-
-.selected-plan-name {
-  font-weight: 600;
-  color: var(--accent);
-}
-
-.btn-clear-plan {
-  background: transparent;
-  border: none;
-  color: #c0392b;
-  font-size: 16px;
-  cursor: pointer;
-}
-
-/* Plan Suggestions */
-.plan-search-wrapper {
-  position: relative;
-}
-
-.suggestions-list {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  background-color: var(--bg);
-  border: 1px solid var(--border);
-  border-top: none;
-  border-radius: 0 0 8px 8px;
-  z-index: 10;
-  max-height: 200px;
-  overflow-y: auto;
-  box-shadow: var(--shadow);
-}
-
-.suggestion-item {
-  display: flex;
-  justify-content: space-between;
-  padding: 10px 14px;
-  cursor: pointer;
-  border-bottom: 1px solid var(--border);
-}
-
-.suggestion-item:last-child {
-  border-bottom: none;
-}
-
-.suggestion-item:hover {
-  background-color: var(--code-bg);
-}
-
-.sug-name {
-  font-weight: 500;
-  color: var(--text-h);
-}
-
-.sug-price {
-  color: var(--text);
-  font-size: 13px;
-}
-
-/* Buttons */
 .btn {
   padding: 11px 20px;
   font-size: 15px;
@@ -799,37 +793,18 @@ onMounted(() => {
 .btn-edit {
   background-color: rgba(52, 152, 219, 0.15);
   color: #2980b9;
-  border: 1px solid rgba(52, 152, 219, 0.3);
-}
-
-.btn-edit:hover {
-  background-color: #2980b9;
-  color: #fff;
 }
 
 .btn-status-inactive {
   background-color: rgba(231, 76, 60, 0.15);
   color: #c0392b;
-  border: 1px solid rgba(231, 76, 60, 0.3);
-}
-
-.btn-status-inactive:hover {
-  background-color: #c0392b;
-  color: #fff;
 }
 
 .btn-status-active {
   background-color: rgba(46, 204, 113, 0.15);
   color: #27ae60;
-  border: 1px solid rgba(46, 204, 113, 0.3);
 }
 
-.btn-status-active:hover {
-  background-color: #27ae60;
-  color: #fff;
-}
-
-/* Pagination */
 .pagination {
   display: flex;
   justify-content: space-between;
@@ -837,70 +812,18 @@ onMounted(() => {
   margin-top: 20px;
 }
 
-.page-info {
-  font-size: 14px;
-  color: var(--text);
-}
-
-.btn-page {
-  padding: 6px 14px;
-  font-size: 14px;
-  border-color: var(--border);
-  background: transparent;
-  color: var(--text-h);
-}
-
-.btn-page:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-/* Errors */
 .error-alert {
-  background-color: rgba(231, 76, 60, 0.1);
+  background-color: rgba(231, 76, 60, 0.15);
   border: 1px solid rgba(231, 76, 60, 0.3);
   color: #c0392b;
-  padding: 16px;
+  padding: 15px;
   border-radius: 8px;
-  margin-bottom: 24px;
-  font-size: 15px;
-}
-
-.error-alert strong {
-  display: block;
-  margin-bottom: 8px;
+  margin-bottom: 20px;
+  font-size: 14px;
 }
 
 .error-alert ul {
-  margin: 0;
+  margin: 8px 0 0 0;
   padding-left: 20px;
-}
-
-/* Empty State Card styling */
-.empty-state-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 60px 20px;
-  border: 1px dashed var(--border);
-  border-radius: 8px;
-  background-color: var(--code-bg);
-  color: var(--text);
-  text-align: center;
-  margin-top: 10px;
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.empty-icon {
-  font-size: 36px;
-  margin-bottom: 12px;
-}
-
-.empty-text {
-  font-size: 16px;
-  margin: 0;
-  font-style: italic;
 }
 </style>

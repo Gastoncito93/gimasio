@@ -70,6 +70,13 @@ const onLogin = async () => {
           {{ isLoading ? 'Ingresando...' : 'Ingresar' }}
         </button>
       </form>
+
+      <div class="register-footer">
+        <p>¿No tienes una cuenta aún?</p>
+        <router-link to="/register" class="btn-register-link">
+          Crear nueva cuenta →
+        </router-link>
+      </div>
     </div>
   </div>
 </template>
@@ -160,18 +167,25 @@ const onLogin = async () => {
   cursor: not-allowed;
 }
 
-.error-alert {
-  background-color: rgba(231, 76, 60, 0.1);
-  border: 1px solid rgba(231, 76, 60, 0.3);
-  color: #c0392b;
-  padding: 12px 16px;
-  border-radius: 8px;
-  margin-bottom: 20px;
+.register-footer {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  text-align: center;
   font-size: 14px;
 }
 
-.error-alert ul {
-  margin: 0;
-  padding-left: 20px;
+.register-footer p {
+  margin: 0 0 6px 0;
+  color: var(--text);
+  opacity: 0.8;
+}
+
+.btn-register-link {
+  display: inline-block;
+  color: var(--accent);
+  font-weight: 700;
+  text-decoration: underline;
+  font-size: 14px;
 }
 </style>

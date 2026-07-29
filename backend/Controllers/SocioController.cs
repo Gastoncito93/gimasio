@@ -31,6 +31,28 @@ public class SocioController : ControllerBase
         return Ok(result);
     }
 
+    [AllowAnonymous]
+    [HttpGet("coaches")]
+    public async Task<IActionResult> GetCoaches()
+    {
+        var coaches = await _socioService.GetCoachesAsync();
+        return Ok(coaches);
+    }
+
+    [HttpGet("mi-socio")]
+    public async Task<IActionResult> GetMiSocio()
+    {
+        var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (!int.TryParse(userIdClaim, out var userId)) return Unauthorized();
+
+        var socio = await _socioService.GetByUsuarioIdAsync(userId);
+        if (socio == null)
+        {
+            return NotFound(new { message = "Socio no encontrado para el usuario actual." });
+        }
+        return Ok(socio);
+    }
+
     [HttpGet("{id:int}")]
     public async Task<IActionResult> GetById(int id)
     {
@@ -53,6 +75,7 @@ public class SocioController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Roles = "Administrador")]
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] SocioCreateUpdateDto dto)
     {
@@ -74,6 +97,7 @@ public class SocioController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = data!.Id }, data);
     }
 
+    [Authorize(Roles = "Administrador")]
     [HttpPut("{id:int}")]
     public async Task<IActionResult> Update(int id, [FromBody] SocioCreateUpdateDto dto)
     {

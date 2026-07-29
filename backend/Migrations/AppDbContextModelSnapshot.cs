@@ -22,6 +22,72 @@ namespace Backend.Migrations
 
             MySqlModelBuilderExtensions.AutoIncrementColumns(modelBuilder);
 
+            modelBuilder.Entity("Backend.Models.Actividad", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreadoAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("Descripcion")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<string>("Estado")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)")
+                        .HasDefaultValue("Activo");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Actividades");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            CreadoAt = new DateTime(2026, 7, 29, 19, 14, 50, 85, DateTimeKind.Utc).AddTicks(3317),
+                            Descripcion = "Entrenamiento de fuerza y sala libre",
+                            Estado = "Activo",
+                            Nombre = "Musculación"
+                        },
+                        new
+                        {
+                            Id = 2,
+                            CreadoAt = new DateTime(2026, 7, 29, 19, 14, 50, 85, DateTimeKind.Utc).AddTicks(4000),
+                            Descripcion = "Entrenamiento funcional de alta intensidad",
+                            Estado = "Activo",
+                            Nombre = "Crossfit"
+                        },
+                        new
+                        {
+                            Id = 3,
+                            CreadoAt = new DateTime(2026, 7, 29, 19, 14, 50, 85, DateTimeKind.Utc).AddTicks(4002),
+                            Descripcion = "Ciclismo de interior guiado",
+                            Estado = "Activo",
+                            Nombre = "Spinning"
+                        },
+                        new
+                        {
+                            Id = 4,
+                            CreadoAt = new DateTime(2026, 7, 29, 19, 14, 50, 85, DateTimeKind.Utc).AddTicks(4003),
+                            Descripcion = "Flexibilidad, postura y relajación",
+                            Estado = "Activo",
+                            Nombre = "Yoga"
+                        });
+                });
+
             modelBuilder.Entity("Backend.Models.Certificado", b =>
                 {
                     b.Property<int>("Id")
@@ -159,7 +225,12 @@ namespace Backend.Migrations
                         new
                         {
                             Id = 2,
-                            Nombre = "Empleado"
+                            Nombre = "Coach"
+                        },
+                        new
+                        {
+                            Id = 3,
+                            Nombre = "Alumno"
                         });
                 });
 
@@ -188,7 +259,13 @@ namespace Backend.Migrations
                     b.Property<DateTime>("FechaAlta")
                         .HasColumnType("datetime(6)");
 
+                    b.Property<int?>("IdCoach")
+                        .HasColumnType("int");
+
                     b.Property<int>("IdPlan")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("IdUsuario")
                         .HasColumnType("int");
 
                     b.Property<string>("NombreCompleto")
@@ -209,9 +286,58 @@ namespace Backend.Migrations
                     b.HasIndex("Dni")
                         .IsUnique();
 
+                    b.HasIndex("IdCoach");
+
                     b.HasIndex("IdPlan");
 
+                    b.HasIndex("IdUsuario")
+                        .IsUnique();
+
                     b.ToTable("Socios");
+                });
+
+            modelBuilder.Entity("Backend.Models.SocioProgreso", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreadoAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime>("Fecha")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int>("IdSocio")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Observaciones")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<decimal?>("PesoKg")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<string>("RutaFotoEspalda")
+                        .HasMaxLength(255)
+                        .HasColumnType("varchar(255)");
+
+                    b.Property<string>("RutaFotoFrente")
+                        .HasMaxLength(255)
+                        .HasColumnType("varchar(255)");
+
+                    b.Property<string>("RutaFotoPerfil")
+                        .HasMaxLength(255)
+                        .HasColumnType("varchar(255)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IdSocio");
+
+                    b.ToTable("SociosProgresos", (string)null);
                 });
 
             modelBuilder.Entity("Backend.Models.Usuario", b =>
@@ -224,6 +350,9 @@ namespace Backend.Migrations
 
                     b.Property<DateTime?>("EliminadoAt")
                         .HasColumnType("datetime(6)");
+
+                    b.Property<int?>("IdActividad")
+                        .HasColumnType("int");
 
                     b.Property<int>("IdRol")
                         .HasColumnType("int");
@@ -248,6 +377,8 @@ namespace Backend.Migrations
                         .HasColumnType("varchar(50)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("IdActividad");
 
                     b.HasIndex("IdRol");
 
@@ -281,24 +412,61 @@ namespace Backend.Migrations
 
             modelBuilder.Entity("Backend.Models.Socio", b =>
                 {
+                    b.HasOne("Backend.Models.Usuario", "Coach")
+                        .WithMany("AlumnosComoCoach")
+                        .HasForeignKey("IdCoach")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("Backend.Models.Plan", "Plan")
                         .WithMany("Socios")
                         .HasForeignKey("IdPlan")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("Backend.Models.Usuario", "Usuario")
+                        .WithOne()
+                        .HasForeignKey("Backend.Models.Socio", "IdUsuario")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Coach");
+
                     b.Navigation("Plan");
+
+                    b.Navigation("Usuario");
+                });
+
+            modelBuilder.Entity("Backend.Models.SocioProgreso", b =>
+                {
+                    b.HasOne("Backend.Models.Socio", "Socio")
+                        .WithMany("Progresos")
+                        .HasForeignKey("IdSocio")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Socio");
                 });
 
             modelBuilder.Entity("Backend.Models.Usuario", b =>
                 {
+                    b.HasOne("Backend.Models.Actividad", "Actividad")
+                        .WithMany("Coaches")
+                        .HasForeignKey("IdActividad")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("Backend.Models.Rol", "Rol")
                         .WithMany("Usuarios")
                         .HasForeignKey("IdRol")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.Navigation("Actividad");
+
                     b.Navigation("Rol");
+                });
+
+            modelBuilder.Entity("Backend.Models.Actividad", b =>
+                {
+                    b.Navigation("Coaches");
                 });
 
             modelBuilder.Entity("Backend.Models.Plan", b =>
@@ -316,6 +484,13 @@ namespace Backend.Migrations
                     b.Navigation("Certificados");
 
                     b.Navigation("Cuotas");
+
+                    b.Navigation("Progresos");
+                });
+
+            modelBuilder.Entity("Backend.Models.Usuario", b =>
+                {
+                    b.Navigation("AlumnosComoCoach");
                 });
 #pragma warning restore 612, 618
         }

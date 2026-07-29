@@ -14,6 +14,13 @@ public class Socio
     public int IdPlan { get; set; }
     public Plan Plan { get; set; } = null!;
 
+    public int? IdUsuario { get; set; }
+    public Usuario? Usuario { get; set; }
+
+    public int? IdCoach { get; set; }
+    public Usuario? Coach { get; set; }
+
     public ICollection<Cuota> Cuotas { get; set; } = new List<Cuota>();
     public ICollection<Certificado> Certificados { get; set; } = new List<Certificado>();
+    public ICollection<SocioProgreso> Progresos { get; set; } = new List<SocioProgreso>();
 }

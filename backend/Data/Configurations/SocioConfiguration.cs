@@ -22,5 +22,15 @@ public class SocioConfiguration : IEntityTypeConfiguration<Socio>
             .HasForeignKey(s => s.IdPlan)
             .IsRequired()
             .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(s => s.Usuario)
+            .WithOne()
+            .HasForeignKey<Socio>(s => s.IdUsuario)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        builder.HasOne(s => s.Coach)
+            .WithMany(u => u.AlumnosComoCoach)
+            .HasForeignKey(s => s.IdCoach)
+            .OnDelete(DeleteBehavior.SetNull);
     }
 }

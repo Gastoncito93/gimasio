@@ -1,12 +1,37 @@
 using System.Text;
+using System.Threading.RateLimiting;
 using Backend.Data;
 using Backend.Services.Business;
 using Backend.Services.Interfaces;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.FileProviders;
 using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Configurar WebRootPath tempranamente si no se ha detectado
+var webRootPath = builder.Environment.WebRootPath;
+if (string.IsNullOrEmpty(webRootPath))
+{
+    webRootPath = Path.Combine(builder.Environment.ContentRootPath, "wwwroot");
+    builder.Environment.WebRootPath = webRootPath;
+}
+if (!Directory.Exists(webRootPath))
+{
+    Directory.CreateDirectory(webRootPath);
+}
+var avataresPath = Path.Combine(webRootPath, "uploads", "avatares");
+if (!Directory.Exists(avataresPath))
+{
+    Directory.CreateDirectory(avataresPath);
+}
+var progresoPath = Path.Combine(webRootPath, "uploads", "progreso");
+if (!Directory.Exists(progresoPath))
+{
+    Directory.CreateDirectory(progresoPath);
+}
 
 // Add services to the container.
 builder.Services.AddControllers();
@@ -20,6 +45,18 @@ builder.Services.AddCors(options =>
         policy.WithOrigins("http://localhost:5173")
               .AllowAnyHeader()
               .AllowAnyMethod();
+    });
+});
+
+// Configuración de Rate Limiting (Protección Anti Fuerza Bruta)
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddFixedWindowLimiter("LoginPolicy", policyOptions =>
+    {
+        policyOptions.PermitLimit = 5;
+        policyOptions.Window = TimeSpan.FromMinutes(1);
+        policyOptions.QueueLimit = 0;
     });
 });
 
@@ -57,9 +94,13 @@ builder.Services.AddAuthorization();
 
 // Registrar servicios de negocio
 builder.Services.AddScoped<IPlanService, PlanService>();
+builder.Services.AddScoped<IActividadService, ActividadService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ISocioService, SocioService>();
 builder.Services.AddScoped<ICuotaService, CuotaService>();
+builder.Services.AddScoped<ICoachService, CoachService>();
+builder.Services.AddScoped<IUsuarioService, UsuarioService>();
+builder.Services.AddScoped<ISocioProgresoService, SocioProgresoService>();
 
 var app = builder.Build();
 
@@ -87,7 +128,15 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
+// Habilitar archivos estáticos para wwwroot
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(webRootPath),
+    RequestPath = ""
+});
+
 app.UseCors("AllowFrontend");
+app.UseRateLimiter();
 
 app.UseAuthentication();
 app.UseAuthorization();

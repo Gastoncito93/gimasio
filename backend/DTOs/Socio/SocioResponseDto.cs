@@ -13,5 +13,7 @@ public class SocioResponseDto
     public string Estado { get; set; } = string.Empty;
     public int IdPlan { get; set; }
     public string PlanNombre { get; set; } = string.Empty;
+    public int? IdCoach { get; set; }
+    public string? CoachNombre { get; set; }
     public string? Observacion { get; set; }
 }

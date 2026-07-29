@@ -20,12 +20,38 @@ public class SocioService : ISocioService
         _context = context;
     }
 
+    public async Task<List<CoachSelectItemDto>> GetCoachesAsync()
+    {
+        var coaches = await _context.Usuarios
+            .Where(u => u.IdRol == 2 && u.EliminadoAt == null)
+            .OrderBy(u => u.Nombre)
+            .ToListAsync();
+
+        var result = new List<CoachSelectItemDto>();
+        foreach (var c in coaches)
+        {
+            int count = await _context.Socios.CountAsync(s => s.IdCoach == c.Id);
+            result.Add(new CoachSelectItemDto
+            {
+                Id = c.Id,
+                Nombre = c.Nombre,
+                Username = c.Username,
+                AlumnosActuales = count,
+                CupoMaximo = 20
+            });
+        }
+        return result;
+    }
+
     public async Task<PagedResultDto<SocioResponseDto>> GetPagedAsync(int page, int pageSize, string? search, string? estado, int? idPlan)
     {
         page = page < 1 ? 1 : page;
         pageSize = pageSize < 1 ? 10 : pageSize;
 
-        IQueryable<Socio> query = _context.Socios.Include(s => s.Plan).AsNoTracking();
+        IQueryable<Socio> query = _context.Socios
+            .Include(s => s.Plan)
+            .Include(s => s.Coach)
+            .AsNoTracking();
 
         if (!string.IsNullOrWhiteSpace(search))
         {
@@ -65,6 +91,8 @@ public class SocioService : ISocioService
                 Estado = s.Estado,
                 IdPlan = s.IdPlan,
                 PlanNombre = s.Plan.Nombre,
+                IdCoach = s.IdCoach,
+                CoachNombre = s.Coach != null ? s.Coach.Nombre : null,
                 Observacion = s.Observacion
             })
             .ToListAsync();
@@ -86,6 +114,7 @@ public class SocioService : ISocioService
     {
         var socio = await _context.Socios
             .Include(s => s.Plan)
+            .Include(s => s.Coach)
             .AsNoTracking()
             .FirstOrDefaultAsync(s => s.Id == id);
 
@@ -102,6 +131,35 @@ public class SocioService : ISocioService
             Estado = socio.Estado,
             IdPlan = socio.IdPlan,
             PlanNombre = socio.Plan.Nombre,
+            IdCoach = socio.IdCoach,
+            CoachNombre = socio.Coach != null ? socio.Coach.Nombre : null,
+            Observacion = socio.Observacion
+        };
+    }
+
+    public async Task<SocioResponseDto?> GetByUsuarioIdAsync(int userId)
+    {
+        var socio = await _context.Socios
+            .Include(s => s.Plan)
+            .Include(s => s.Coach)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(s => s.IdUsuario == userId);
+
+        if (socio == null) return null;
+
+        return new SocioResponseDto
+        {
+            Id = socio.Id,
+            Dni = socio.Dni,
+            NombreCompleto = socio.NombreCompleto,
+            Telefono = socio.Telefono,
+            Email = socio.Email,
+            FechaAlta = socio.FechaAlta,
+            Estado = socio.Estado,
+            IdPlan = socio.IdPlan,
+            PlanNombre = socio.Plan != null ? socio.Plan.Nombre : string.Empty,
+            IdCoach = socio.IdCoach,
+            CoachNombre = socio.Coach != null ? socio.Coach.Nombre : null,
             Observacion = socio.Observacion
         };
     }
@@ -149,6 +207,7 @@ public class SocioService : ISocioService
             FechaAlta = dto.FechaAlta,
             Estado = string.IsNullOrWhiteSpace(dto.Estado) ? "Activo" : dto.Estado.Trim(),
             IdPlan = dto.IdPlan,
+            IdCoach = dto.IdCoach,
             Observacion = string.IsNullOrWhiteSpace(dto.Observacion) ? null : dto.Observacion.Trim()
         };
 
@@ -180,6 +239,7 @@ public class SocioService : ISocioService
         socio.FechaAlta = dto.FechaAlta;
         socio.Estado = string.IsNullOrWhiteSpace(dto.Estado) ? "Activo" : dto.Estado.Trim();
         socio.IdPlan = dto.IdPlan;
+        socio.IdCoach = dto.IdCoach;
         socio.Observacion = string.IsNullOrWhiteSpace(dto.Observacion) ? null : dto.Observacion.Trim();
 
         await _context.SaveChangesAsync();
@@ -259,6 +319,23 @@ public class SocioService : ISocioService
         else if (plan.Estado != "Activo")
         {
             errors.Add("Solo se puede asignar un plan que esté en estado 'Activo'.");
+        }
+
+        if (dto.IdCoach.HasValue)
+        {
+            var coachExists = await _context.Usuarios.AsNoTracking().AnyAsync(u => u.Id == dto.IdCoach.Value && u.IdRol == 2 && u.EliminadoAt == null);
+            if (!coachExists)
+            {
+                errors.Add("El coach seleccionado no existe o no tiene el rol correspondiente.");
+            }
+            else
+            {
+                int cantAlumnos = await _context.Socios.CountAsync(s => s.IdCoach == dto.IdCoach.Value && (currentId == null || s.Id != currentId.Value));
+                if (cantAlumnos >= 20)
+                {
+                    errors.Add("El coach seleccionado ha alcanzado el cupo máximo de 20 alumnos.");
+                }
+            }
         }
 
         var estadoTrim = dto.Estado?.Trim();
