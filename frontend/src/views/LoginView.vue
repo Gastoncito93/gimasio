@@ -64,6 +64,11 @@ const onLogin = async () => {
             placeholder="••••••••"
             :disabled="isLoading"
           />
+          <div class="forgot-pass-wrapper">
+            <router-link to="/recuperar-password" class="forgot-pass-link">
+              ¿Olvidaste tu contraseña?
+            </router-link>
+          </div>
         </div>
 
         <button type="submit" class="btn-login" :disabled="isLoading">
@@ -187,5 +192,21 @@ const onLogin = async () => {
   font-weight: 700;
   text-decoration: underline;
   font-size: 14px;
+}
+
+.forgot-pass-wrapper {
+  text-align: right;
+  margin-top: 6px;
+}
+
+.forgot-pass-link {
+  font-size: 12px;
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.forgot-pass-link:hover {
+  text-decoration: underline;
 }
 </style>

@@ -22,6 +22,100 @@ const profileErrorMsg = ref('');
 const avatarSuccessMsg = ref('');
 const avatarErrorMsg = ref('');
 
+// Cambiar Contraseña
+const passActual = ref('');
+const passNueva = ref('');
+const passConfirmar = ref('');
+
+const passErrors = ref({
+  actual: '',
+  nueva: '',
+  confirmar: ''
+});
+
+const passSuccessMsg = ref('');
+const passGlobalError = ref('');
+const isChangingPass = ref(false);
+
+const validatePassActual = () => {
+  if (!passActual.value) {
+    passErrors.value.actual = 'Ingresa tu contraseña actual.';
+    return false;
+  }
+  passErrors.value.actual = '';
+  return true;
+};
+
+const validatePassNueva = () => {
+  const val = passNueva.value;
+  if (!val) {
+    passErrors.value.nueva = 'Ingresa tu nueva contraseña.';
+    return false;
+  }
+  if (val.length < 6 || val.length > 16) {
+    passErrors.value.nueva = 'La contraseña debe tener entre 6 y 16 caracteres.';
+    return false;
+  }
+  if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(val)) {
+    passErrors.value.nueva = 'Debe incluir al menos una letra mayúscula, una minúscula y un número.';
+    return false;
+  }
+  if (passActual.value && val === passActual.value) {
+    passErrors.value.nueva = 'La nueva contraseña no puede ser igual a la contraseña actual.';
+    return false;
+  }
+  passErrors.value.nueva = '';
+  return true;
+};
+
+const validatePassConfirmar = () => {
+  if (!passConfirmar.value) {
+    passErrors.value.confirmar = 'Confirma tu nueva contraseña.';
+    return false;
+  }
+  if (passConfirmar.value !== passNueva.value) {
+    passErrors.value.confirmar = 'Las contraseñas no coinciden.';
+    return false;
+  }
+  passErrors.value.confirmar = '';
+  return true;
+};
+
+const onCambiarPassword = async () => {
+  passSuccessMsg.value = '';
+  passGlobalError.value = '';
+
+  const v1 = validatePassActual();
+  const v2 = validatePassNueva();
+  const v3 = validatePassConfirmar();
+
+  if (!v1 || !v2 || !v3) return;
+
+  isChangingPass.value = true;
+  try {
+    await authService.cambiarPassword(passActual.value, passNueva.value);
+    passSuccessMsg.value = '¡Contraseña actualizada correctamente!';
+    passActual.value = '';
+    passNueva.value = '';
+    passConfirmar.value = '';
+    passErrors.value.actual = '';
+    passErrors.value.nueva = '';
+    passErrors.value.confirmar = '';
+  } catch (err) {
+    if (err.response?.data?.errors) {
+      if (Array.isArray(err.response.data.errors)) {
+        passGlobalError.value = err.response.data.errors.join(' ');
+      } else {
+        passGlobalError.value = String(err.response.data.errors);
+      }
+    } else {
+      passGlobalError.value = 'Error al actualizar la contraseña. Verifica que la contraseña actual sea correcta.';
+    }
+  } finally {
+    isChangingPass.value = false;
+  }
+};
+
 const getAvatarUrl = (ruta) => {
   if (!ruta) return null;
   if (ruta.startsWith('http')) return ruta;
@@ -82,7 +176,7 @@ const uploadAvatar = async () => {
   avatarSuccessMsg.value = '';
 
   try {
-    const res = await authService.uploadAvatar(selectedFile.value);
+    await authService.uploadAvatar(selectedFile.value);
     avatarSuccessMsg.value = '¡Avatar actualizado correctamente!';
     selectedFile.value = null;
     previewAvatarUrl.value = null;
@@ -135,8 +229,8 @@ onMounted(() => {
 <template>
   <div class="profile-container">
     <header class="page-header">
-      <h1>Perfil de Usuario</h1>
-      <p class="subtitle">Gestiona tu información personal y foto de perfil</p>
+      <h1>Perfil y Seguridad de Usuario</h1>
+      <p class="subtitle">Gestiona tu información personal, foto de perfil y contraseña de acceso</p>
     </header>
 
     <div class="profile-grid">
@@ -194,60 +288,131 @@ onMounted(() => {
         </div>
       </div>
 
-      <!-- Card Datos -->
-      <div class="card data-card">
-        <h3>Información Personal</h3>
-        <p class="section-desc">Modifica tu nombre público en el sistema.</p>
+      <!-- Card Datos Personales & Cambiar Contraseña -->
+      <div class="right-column">
+        <!-- Card Datos -->
+        <div class="card data-card margin-bottom-24">
+          <h3>Información Personal</h3>
+          <p class="section-desc">Modifica tu nombre público en el sistema.</p>
 
-        <div v-if="profileSuccessMsg" class="alert alert-success">
-          {{ profileSuccessMsg }}
+          <div v-if="profileSuccessMsg" class="alert alert-success">
+            {{ profileSuccessMsg }}
+          </div>
+          <div v-if="profileErrorMsg" class="alert alert-error">
+            {{ profileErrorMsg }}
+          </div>
+
+          <form @submit.prevent="updateProfile">
+            <div class="form-group">
+              <label for="username">Usuario (No modificable)</label>
+              <input
+                type="text"
+                id="username"
+                :value="user.username"
+                disabled
+                class="input-disabled"
+              />
+            </div>
+
+            <div class="form-group">
+              <label for="rol">Rol (No modificable)</label>
+              <input
+                type="text"
+                id="rol"
+                :value="user.rol"
+                disabled
+                class="input-disabled"
+              />
+            </div>
+
+            <div class="form-group">
+              <label for="nombre">Nombre Visible *</label>
+              <input
+                type="text"
+                id="nombre"
+                v-model="nombreInput"
+                required
+                placeholder="Ingresa tu nombre completo"
+              />
+            </div>
+
+            <button
+              type="submit"
+              class="btn-save"
+              :disabled="isSavingProfile"
+            >
+              {{ isSavingProfile ? 'Guardando...' : 'Guardar Nombre' }}
+            </button>
+          </form>
         </div>
-        <div v-if="profileErrorMsg" class="alert alert-error">
-          {{ profileErrorMsg }}
+
+        <!-- Card Cambiar Contraseña -->
+        <div class="card data-card">
+          <h3>🔒 Seguridad y Cambiar Contraseña</h3>
+          <p class="section-desc">Actualiza tu clave de acceso. Debe tener entre 6 y 16 caracteres.</p>
+
+          <div v-if="passSuccessMsg" class="alert alert-success">
+            {{ passSuccessMsg }}
+          </div>
+          <div v-if="passGlobalError" class="alert alert-error">
+            {{ passGlobalError }}
+          </div>
+
+          <form @submit.prevent="onCambiarPassword" novalidate>
+            <div class="form-group">
+              <label for="prof-pass-actual">Contraseña Actual *</label>
+              <input
+                id="prof-pass-actual"
+                type="password"
+                maxlength="16"
+                v-model="passActual"
+                @input="validatePassActual"
+                @blur="validatePassActual"
+                :class="{ 'input-error': passErrors.actual }"
+                placeholder="Ingresa tu clave actual"
+              />
+              <span v-if="passErrors.actual" class="field-error-text">{{ passErrors.actual }}</span>
+            </div>
+
+            <div class="form-group">
+              <label for="prof-pass-nueva">Nueva Contraseña *</label>
+              <input
+                id="prof-pass-nueva"
+                type="password"
+                maxlength="16"
+                v-model="passNueva"
+                @input="validatePassNueva"
+                @blur="validatePassNueva"
+                :class="{ 'input-error': passErrors.nueva }"
+                placeholder="Entre 6 y 16 caracteres (Mayúscula, minúscula y número)"
+              />
+              <span v-if="passErrors.nueva" class="field-error-text">{{ passErrors.nueva }}</span>
+            </div>
+
+            <div class="form-group">
+              <label for="prof-pass-confirmar">Confirmar Nueva Contraseña *</label>
+              <input
+                id="prof-pass-confirmar"
+                type="password"
+                maxlength="16"
+                v-model="passConfirmar"
+                @input="validatePassConfirmar"
+                @blur="validatePassConfirmar"
+                :class="{ 'input-error': passErrors.confirmar }"
+                placeholder="Repite la nueva contraseña"
+              />
+              <span v-if="passErrors.confirmar" class="field-error-text">{{ passErrors.confirmar }}</span>
+            </div>
+
+            <button
+              type="submit"
+              class="btn-save"
+              :disabled="isChangingPass"
+            >
+              {{ isChangingPass ? 'Actualizando clave...' : 'Actualizar Contraseña' }}
+            </button>
+          </form>
         </div>
-
-        <form @submit.prevent="updateProfile">
-          <div class="form-group">
-            <label for="username">Usuario (No modificable)</label>
-            <input
-              type="text"
-              id="username"
-              :value="user.username"
-              disabled
-              class="input-disabled"
-            />
-          </div>
-
-          <div class="form-group">
-            <label for="rol">Rol (No modificable)</label>
-            <input
-              type="text"
-              id="rol"
-              :value="user.rol"
-              disabled
-              class="input-disabled"
-            />
-          </div>
-
-          <div class="form-group">
-            <label for="nombre">Nombre Visible *</label>
-            <input
-              type="text"
-              id="nombre"
-              v-model="nombreInput"
-              required
-              placeholder="Ingresa tu nombre completo"
-            />
-          </div>
-
-          <button
-            type="submit"
-            class="btn-save"
-            :disabled="isSavingProfile"
-          >
-            {{ isSavingProfile ? 'Guardando...' : 'Guardar Cambios' }}
-          </button>
-        </form>
       </div>
     </div>
   </div>
@@ -288,6 +453,16 @@ onMounted(() => {
   display: grid;
   grid-template-columns: 320px 1fr;
   gap: 24px;
+}
+
+.right-column {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.margin-bottom-24 {
+  margin-bottom: 0;
 }
 
 @media (max-width: 768px) {
@@ -433,10 +608,25 @@ onMounted(() => {
   color: inherit;
   outline: none;
   box-sizing: border-box;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
 }
 
 .form-group input:focus {
   border-color: var(--accent);
+}
+
+.form-group input.input-error {
+  border-color: #ef4444 !important;
+  background-color: rgba(239, 68, 68, 0.06) !important;
+}
+
+.field-error-text {
+  display: block;
+  font-size: 12px;
+  color: #ef4444;
+  margin-top: 5px;
+  font-weight: 600;
+  line-height: 1.3;
 }
 
 .input-disabled {
@@ -456,12 +646,12 @@ onMounted(() => {
 .alert-success {
   background-color: rgba(16, 185, 129, 0.12);
   border: 1px solid rgba(16, 185, 129, 0.3);
-  color: #065f46;
+  color: #10b981;
 }
 
 .alert-error {
   background-color: rgba(239, 68, 68, 0.12);
   border: 1px solid rgba(239, 68, 68, 0.3);
-  color: #991b1b;
+  color: #ef4444;
 }
 </style>

@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router';
 import authService from '../services/authService';
 import LoginView from '../views/LoginView.vue';
 import RegisterView from '../views/RegisterView.vue';
+import RecuperarPasswordView from '../views/RecuperarPasswordView.vue';
 import DashboardView from '../views/DashboardView.vue';
 import PlanesView from '../views/PlanesView.vue';
 import ActividadesView from '../views/ActividadesView.vue';
@@ -25,6 +26,12 @@ const routes = [
     path: '/register',
     name: 'Register',
     component: RegisterView,
+    meta: { isPublic: true },
+  },
+  {
+    path: '/recuperar-password',
+    name: 'RecuperarPassword',
+    component: RecuperarPasswordView,
     meta: { isPublic: true },
   },
   {
@@ -105,25 +112,22 @@ const router = createRouter({
   routes,
 });
 
-router.beforeEach((to, from, next) => {
+router.beforeEach((to) => {
   if (to.meta.isPublic) {
-    next();
-    return;
+    return true;
   }
 
   const isAuthenticated = authService.isAuthenticated();
   if (!isAuthenticated) {
-    next({ name: 'Login' });
-    return;
+    return { name: 'Login' };
   }
 
   const user = authService.getUsuario();
   if (to.meta.roles && (!user || !to.meta.roles.includes(user.rol))) {
-    next({ name: 'Dashboard' });
-    return;
+    return { name: 'Dashboard' };
   }
 
-  next();
+  return true;
 });
 
 export default router;

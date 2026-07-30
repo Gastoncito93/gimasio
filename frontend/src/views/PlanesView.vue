@@ -2,6 +2,7 @@
 import { ref, onMounted, computed } from 'vue';
 import planService from '../services/planService';
 import authService from '../services/authService';
+import { getPlanBadgeStyle } from '../utils/badgeStyles';
 
 // Auth State
 const isAdmin = computed(() => authService.hasRole('Administrador'));
@@ -204,7 +205,9 @@ onMounted(() => {
             </thead>
             <tbody>
               <tr v-for="plan in planes" :key="plan.id" :class="{ 'inactive-row': plan.estado === 'Inactivo' }">
-                <td class="font-bold">{{ plan.nombre }}</td>
+                <td>
+                  <span :style="getPlanBadgeStyle(plan.nombre)">🏷️ {{ plan.nombre }}</span>
+                </td>
                 <td>{{ plan.descripcion || '-' }}</td>
                 <td>${{ plan.precioMensual.toLocaleString('es-AR', { minimumFractionDigits: 2 }) }}</td>
                 <td>

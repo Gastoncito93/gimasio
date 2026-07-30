@@ -22,8 +22,7 @@ public class SocioCreateUpdateDto
     [Required(ErrorMessage = "El estado es obligatorio.")]
     public string Estado { get; set; } = "Activo";
 
-    [Required(ErrorMessage = "El plan es obligatorio.")]
-    public int IdPlan { get; set; }
+    public int? IdPlan { get; set; }
 
     public int? IdCoach { get; set; }
 

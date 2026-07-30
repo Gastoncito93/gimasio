@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import api from '../services/api';
+import { getCoachBadgeStyle } from '../utils/badgeStyles';
 
 const coaches = ref([]);
 const actividades = ref([]);
@@ -191,7 +192,7 @@ onMounted(() => {
               <div class="user-cell">
                 <img :src="c.rutaAvatar || defaultAvatar(c.nombre)" class="avatar" alt="Avatar" />
                 <div class="user-info">
-                  <span class="name">{{ cleanName(c.nombre) }}</span>
+                  <span :style="getCoachBadgeStyle(c.nombre)">🧢 {{ cleanName(c.nombre) }}</span>
                 </div>
               </div>
             </td>

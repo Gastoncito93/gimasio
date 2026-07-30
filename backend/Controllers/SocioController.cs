@@ -25,9 +25,10 @@ public class SocioController : ControllerBase
         [FromQuery] int pageSize = 10,
         [FromQuery] string? search = null,
         [FromQuery] string? estado = null,
-        [FromQuery] int? idPlan = null)
+        [FromQuery] int? idPlan = null,
+        [FromQuery] int? idActividad = null)
     {
-        var result = await _socioService.GetPagedAsync(page, pageSize, search, estado, idPlan);
+        var result = await _socioService.GetPagedAsync(page, pageSize, search, estado, idPlan, idActividad);
         return Ok(result);
     }
 

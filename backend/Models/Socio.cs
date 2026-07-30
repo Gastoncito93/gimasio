@@ -11,8 +11,8 @@ public class Socio
     public string Estado { get; set; } = "Activo";
     public string? Observacion { get; set; }
 
-    public int IdPlan { get; set; }
-    public Plan Plan { get; set; } = null!;
+    public int? IdPlan { get; set; }
+    public Plan? Plan { get; set; }
 
     public int? IdUsuario { get; set; }
     public Usuario? Usuario { get; set; }

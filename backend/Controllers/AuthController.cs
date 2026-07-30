@@ -134,4 +134,80 @@ public class AuthController : ControllerBase
 
         return Ok(new { rutaAvatar });
     }
+
+    [Authorize]
+    [HttpPost("cambiar-password-primer-ingreso")]
+    public async Task<IActionResult> CambiarPasswordPrimerIngreso([FromBody] CambiarPasswordPrimerIngresoDto dto)
+    {
+        if (!ModelState.IsValid)
+        {
+            var modelErrors = ModelState.Values
+                .SelectMany(v => v.Errors)
+                .Select(e => e.ErrorMessage)
+                .ToList();
+            return BadRequest(new { errors = modelErrors });
+        }
+
+        var idClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (idClaim == null || !int.TryParse(idClaim, out int userId))
+        {
+            return Unauthorized(new { errors = new[] { "Usuario no identificado o sesión no válida." } });
+        }
+
+        var (success, data, error) = await _authService.CambiarPasswordPrimerIngresoAsync(userId, dto);
+        if (!success)
+        {
+            return BadRequest(new { errors = new[] { error ?? "Error al cambiar la contraseña." } });
+        }
+
+        return Ok(data);
+    }
+
+    [AllowAnonymous]
+    [HttpPost("solicitar-recuperacion")]
+    public async Task<IActionResult> SolicitarRecuperacion([FromBody] SolicitarRecuperacionDto dto)
+    {
+        if (!ModelState.IsValid)
+        {
+            var modelErrors = ModelState.Values
+                .SelectMany(v => v.Errors)
+                .Select(e => e.ErrorMessage)
+                .ToList();
+            return BadRequest(new { errors = modelErrors });
+        }
+
+        var (success, codigoDev, error) = await _authService.SolicitarRecuperacionAsync(dto);
+        if (!success)
+        {
+            return BadRequest(new { errors = new[] { error ?? "Error al procesar la solicitud." } });
+        }
+
+        return Ok(new
+        {
+            message = "Si el usuario o correo existe en el sistema, se enviará un código de 6 dígitos para restablecer la contraseña.",
+            codigoDev = _env.IsDevelopment() ? codigoDev : null
+        });
+    }
+
+    [AllowAnonymous]
+    [HttpPost("restablecer-password-codigo")]
+    public async Task<IActionResult> RestablecerPasswordCodigo([FromBody] RestablecerPasswordConCodigoDto dto)
+    {
+        if (!ModelState.IsValid)
+        {
+            var modelErrors = ModelState.Values
+                .SelectMany(v => v.Errors)
+                .Select(e => e.ErrorMessage)
+                .ToList();
+            return BadRequest(new { errors = modelErrors });
+        }
+
+        var (success, message, error) = await _authService.RestablecerPasswordConCodigoAsync(dto);
+        if (!success)
+        {
+            return BadRequest(new { errors = new[] { error ?? "Error al restablecer la contraseña." } });
+        }
+
+        return Ok(new { message });
+    }
 }

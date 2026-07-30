@@ -49,13 +49,15 @@ public class AuthService : IAuthService
         var response = new LoginResponseDto
         {
             Token = token,
+            DebeCambiarPassword = user.DebeCambiarPassword,
             Usuario = new UserBasicInfoDto
             {
                 Id = user.Id,
                 Username = user.Username,
                 Nombre = user.Nombre,
                 RutaAvatar = user.RutaAvatar,
-                Rol = user.Rol.Nombre
+                Rol = user.Rol.Nombre,
+                DebeCambiarPassword = user.DebeCambiarPassword
             }
         };
 
@@ -69,7 +71,32 @@ public class AuthService : IAuthService
         bool usernameExists = await _context.Usuarios.AnyAsync(u => u.Username.ToLower() == usernameTrim);
         if (usernameExists)
         {
-            return (false, null, "El nombre de usuario ya se encuentra registrado.");
+            return (false, null, "El nombre de usuario ya se encuentra registrado en el sistema.");
+        }
+
+        if (string.IsNullOrWhiteSpace(dto.Password) || dto.Password.Length < 6 || dto.Password.Length > 16)
+        {
+            return (false, null, "La contraseña debe tener entre 6 y 16 caracteres.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(dto.Dni))
+        {
+            var dniTrim = dto.Dni.Trim();
+            bool dniExists = await _context.Socios.AnyAsync(s => s.Dni == dniTrim);
+            if (dniExists)
+            {
+                return (false, null, "El número de DNI ya se encuentra registrado en el sistema.");
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(dto.Email))
+        {
+            var emailTrim = dto.Email.Trim().ToLower();
+            bool emailExists = await _context.Socios.AnyAsync(s => s.Email != null && s.Email.ToLower() == emailTrim);
+            if (emailExists)
+            {
+                return (false, null, "El correo electrónico ya se encuentra registrado en el sistema.");
+            }
         }
 
         // Determinar el Rol (2: Coach, 3: Alumno)
@@ -100,9 +127,6 @@ public class AuthService : IAuthService
         // Si es Alumno, vincular o crear automáticamente su registro de Socio
         if (idRol == 3)
         {
-            var planInicial = await _context.Planes.FirstOrDefaultAsync(p => p.Estado == "Activo")
-                              ?? await _context.Planes.FirstAsync();
-
             var dni = string.IsNullOrWhiteSpace(dto.Dni) ? $"AUTO-{newUser.Id:D6}" : dto.Dni.Trim();
 
             var socio = new Socio
@@ -113,7 +137,7 @@ public class AuthService : IAuthService
                 Email = dto.Email?.Trim(),
                 FechaAlta = DateTime.UtcNow,
                 Estado = "Activo",
-                IdPlan = dto.IdPlan.HasValue ? dto.IdPlan.Value : planInicial.Id,
+                IdPlan = dto.IdPlan,
                 IdUsuario = newUser.Id,
                 IdCoach = dto.IdCoach
             };
@@ -129,13 +153,15 @@ public class AuthService : IAuthService
         var response = new LoginResponseDto
         {
             Token = token,
+            DebeCambiarPassword = newUser.DebeCambiarPassword,
             Usuario = new UserBasicInfoDto
             {
                 Id = newUser.Id,
                 Username = newUser.Username,
                 Nombre = newUser.Nombre,
                 RutaAvatar = newUser.RutaAvatar,
-                Rol = rolObj.Nombre
+                Rol = rolObj.Nombre,
+                DebeCambiarPassword = newUser.DebeCambiarPassword
             }
         };
 
@@ -159,7 +185,8 @@ public class AuthService : IAuthService
             Username = user.Username,
             Nombre = user.Nombre,
             RutaAvatar = user.RutaAvatar,
-            Rol = user.Rol.Nombre
+            Rol = user.Rol.Nombre,
+            DebeCambiarPassword = user.DebeCambiarPassword
         };
 
         return (true, dto, null);
@@ -185,10 +212,63 @@ public class AuthService : IAuthService
             Username = user.Username,
             Nombre = user.Nombre,
             RutaAvatar = user.RutaAvatar,
-            Rol = user.Rol.Nombre
+            Rol = user.Rol.Nombre,
+            DebeCambiarPassword = user.DebeCambiarPassword
         };
 
         return (true, result, null);
+    }
+
+    public async Task<(bool Success, LoginResponseDto? Data, string? Error)> CambiarPasswordPrimerIngresoAsync(int userId, CambiarPasswordPrimerIngresoDto dto)
+    {
+        var user = await _context.Usuarios
+            .Include(u => u.Rol)
+            .FirstOrDefaultAsync(u => u.Id == userId);
+
+        if (user == null || user.EliminadoAt.HasValue)
+        {
+            return (false, null, "Usuario no encontrado o deshabilitado.");
+        }
+
+        bool isPasswordValid = BCrypt.Net.BCrypt.Verify(dto.PasswordActual, user.PasswordHash);
+        if (!isPasswordValid)
+        {
+            return (false, null, "La contraseña actual es incorrecta.");
+        }
+
+        if (string.IsNullOrWhiteSpace(dto.NuevaPassword) || dto.NuevaPassword.Length < 6 || dto.NuevaPassword.Length > 16)
+        {
+            return (false, null, "La nueva contraseña debe tener entre 6 y 16 caracteres.");
+        }
+
+        if (dto.PasswordActual == dto.NuevaPassword)
+        {
+            return (false, null, "La nueva contraseña no puede ser igual a la contraseña actual.");
+        }
+
+        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.NuevaPassword);
+        user.DebeCambiarPassword = false;
+
+        await _context.SaveChangesAsync();
+
+        var token = GenerateJwtToken(user);
+
+        var response = new LoginResponseDto
+        {
+            Token = token,
+            DebeCambiarPassword = false,
+            Usuario = new UserBasicInfoDto
+            {
+                Id = user.Id,
+                Username = user.Username,
+                Nombre = user.Nombre,
+                RutaAvatar = user.RutaAvatar,
+                Rol = user.Rol.Nombre,
+                DebeCambiarPassword = false
+            }
+        };
+
+        return (true, response, null);
     }
 
     public async Task<(bool Success, string? RutaAvatar, string? Error)> UploadAvatarAsync(int userId, IFormFile file, string webRootPath)
@@ -253,6 +333,83 @@ public class AuthService : IAuthService
         await _context.SaveChangesAsync();
 
         return (true, user.RutaAvatar, null);
+    }
+
+    public async Task<(bool Success, string? CodigoDev, string? Error)> SolicitarRecuperacionAsync(SolicitarRecuperacionDto dto)
+    {
+        var inputTrim = dto.EmailOrUsername.Trim().ToLower();
+
+        var user = await _context.Usuarios
+            .FirstOrDefaultAsync(u => u.Username.ToLower() == inputTrim);
+
+        if (user == null)
+        {
+            var socio = await _context.Socios
+                .FirstOrDefaultAsync(s => s.Email != null && s.Email.ToLower() == inputTrim && s.IdUsuario.HasValue);
+            if (socio != null && socio.IdUsuario.HasValue)
+            {
+                user = await _context.Usuarios.FirstOrDefaultAsync(u => u.Id == socio.IdUsuario.Value);
+            }
+        }
+
+        if (user == null || user.EliminadoAt.HasValue)
+        {
+            return (true, null, null);
+        }
+
+        var random = new Random();
+        string codigo6 = random.Next(100000, 999999).ToString();
+
+        user.TokenRecuperacion = codigo6;
+        user.TokenRecuperacionExpiracion = DateTime.UtcNow.AddMinutes(15);
+
+        await _context.SaveChangesAsync();
+
+        Console.WriteLine($"[EMAIL RECOVERY] Código generado para {user.Username}: {codigo6}");
+
+        return (true, codigo6, null);
+    }
+
+    public async Task<(bool Success, string? Message, string? Error)> RestablecerPasswordConCodigoAsync(RestablecerPasswordConCodigoDto dto)
+    {
+        var inputTrim = dto.EmailOrUsername.Trim().ToLower();
+
+        var user = await _context.Usuarios
+            .FirstOrDefaultAsync(u => u.Username.ToLower() == inputTrim);
+
+        if (user == null)
+        {
+            var socio = await _context.Socios
+                .FirstOrDefaultAsync(s => s.Email != null && s.Email.ToLower() == inputTrim && s.IdUsuario.HasValue);
+            if (socio != null && socio.IdUsuario.HasValue)
+            {
+                user = await _context.Usuarios.FirstOrDefaultAsync(u => u.Id == socio.IdUsuario.Value);
+            }
+        }
+
+        if (user == null || user.EliminadoAt.HasValue)
+        {
+            return (false, null, "Usuario o correo electrónico no encontrado.");
+        }
+
+        if (string.IsNullOrEmpty(user.TokenRecuperacion) || user.TokenRecuperacion != dto.Codigo6Digitos.Trim())
+        {
+            return (false, null, "El código de 6 dígitos ingresado es incorrecto o inválido.");
+        }
+
+        if (!user.TokenRecuperacionExpiracion.HasValue || user.TokenRecuperacionExpiracion.Value < DateTime.UtcNow)
+        {
+            return (false, null, "El código de recuperación ha expirado. Por favor, solicita uno nuevo.");
+        }
+
+        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.NuevaPassword);
+        user.TokenRecuperacion = null;
+        user.TokenRecuperacionExpiracion = null;
+        user.DebeCambiarPassword = false;
+
+        await _context.SaveChangesAsync();
+
+        return (true, "Contraseña restablecida correctamente. Ya puedes iniciar sesión con tu nueva contraseña.", null);
     }
 
     private string GenerateJwtToken(Models.Usuario user)

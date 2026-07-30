@@ -41,7 +41,7 @@ public class CoachService : ICoachService
                                      (s.Usuario != null && s.Usuario.Username.ToLower().Contains(searchLower)));
         }
 
-        var alumnos = await query.OrderBy(s => s.NombreCompleto).ToListAsync();
+        var alumnos = await query.OrderByDescending(s => s.FechaAlta).ThenByDescending(s => s.Id).ToListAsync();
 
         return alumnos.Select(s =>
         {
@@ -63,8 +63,9 @@ public class CoachService : ICoachService
                 UltimaSesion = "No disponible todavía",
                 Observaciones = s.Observacion,
                 CoachNombre = s.Coach?.Nombre ?? "Sin asignación",
-                ActividadNombre = s.Coach?.Actividad?.Nombre ?? "Musculación",
-                CantidadEvoluciones = s.Progresos.Count
+                ActividadNombre = s.Coach?.Actividad?.Nombre ?? "Sin asignación",
+                CantidadEvoluciones = s.Progresos.Count,
+                FechaAlta = s.FechaAlta
             };
         }).ToList();
     }
@@ -112,11 +113,11 @@ public class CoachService : ICoachService
 
             IdPlan = socio.IdPlan,
             PlanNombre = socio.Plan?.Nombre ?? "Sin plan",
-            PlanPrecio = socio.Plan?.PrecioMensual ?? 0,
+            PlanPrecio = socio.Plan?.PrecioMensual,
 
             IdCoach = socio.IdCoach,
             CoachNombre = socio.Coach?.Nombre ?? "Sin asignación",
-            ActividadNombre = socio.Coach?.Actividad?.Nombre ?? "Musculación",
+            ActividadNombre = socio.Coach?.Actividad?.Nombre ?? "Sin asignación",
 
             DeudaEstado = deudaEstado,
             CuotasPendientesCount = cuotasPendientes.Count,

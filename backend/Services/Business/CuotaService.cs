@@ -20,7 +20,7 @@ public class CuotaService : ICuotaService
         _context = context;
     }
 
-    public async Task<PagedResultDto<CuotaResponseDto>> GetPagedAsync(int page, int pageSize, string? search, string? estado, int? periodo)
+    public async Task<CuotaPagedResultDto> GetPagedAsync(int page, int pageSize, string? search, string? estado, int? periodo)
     {
         page = page < 1 ? 1 : page;
         pageSize = pageSize < 1 ? 10 : pageSize;
@@ -51,8 +51,23 @@ public class CuotaService : ICuotaService
         int totalItems = await query.CountAsync();
         int totalPages = (int)Math.Ceiling(totalItems / (double)pageSize);
 
+        var totalRecaudado = await query
+            .Where(c => c.Estado == "Pagada" || c.Estado == "Pagado")
+            .SumAsync(c => (decimal?)c.Monto) ?? 0m;
+
+        var totalPendiente = await query
+            .Where(c => c.Estado == "Pendiente")
+            .SumAsync(c => (decimal?)c.Monto) ?? 0m;
+
+        var cantidadPagadas = await query
+            .CountAsync(c => c.Estado == "Pagada" || c.Estado == "Pagado");
+
+        var cantidadPendientes = await query
+            .CountAsync(c => c.Estado == "Pendiente");
+
         var items = await query
-            .OrderBy(c => c.Id)
+            .OrderByDescending(c => c.Periodo)
+            .ThenByDescending(c => c.Id)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .Select(c => new CuotaResponseDto
@@ -71,7 +86,7 @@ public class CuotaService : ICuotaService
             })
             .ToListAsync();
 
-        return new PagedResultDto<CuotaResponseDto>
+        return new CuotaPagedResultDto
         {
             Data = items,
             Pagination = new PaginationMetadata
@@ -80,7 +95,11 @@ public class CuotaService : ICuotaService
                 PageSize = pageSize,
                 TotalItems = totalItems,
                 TotalPages = totalPages
-            }
+            },
+            TotalRecaudado = totalRecaudado,
+            TotalPendiente = totalPendiente,
+            CantidadPagadas = cantidadPagadas,
+            CantidadPendientes = cantidadPendientes
         };
     }
 

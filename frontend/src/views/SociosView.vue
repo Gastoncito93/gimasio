@@ -4,6 +4,7 @@ import socioService from '../services/socioService';
 import planService from '../services/planService';
 import authService from '../services/authService';
 import api from '../services/api';
+import { getCoachBadgeStyle, getPlanBadgeStyle } from '../utils/badgeStyles';
 
 const getAvatarUrl = (ruta) => {
   if (!ruta) return null;
@@ -14,6 +15,9 @@ const getAvatarUrl = (ruta) => {
 // Auth State
 const isAdmin = computed(() => authService.hasRole('Administrador'));
 
+// Tab State ('alumnos' | 'coaches')
+const activeTab = ref('alumnos');
+
 // Table / Filter State
 const socios = ref([]);
 const currentPage = ref(1);
@@ -23,7 +27,116 @@ const totalItems = ref(0);
 const search = ref('');
 const statusFilter = ref('');
 const planFilter = ref('');
+const actividadFilter = ref('');
 const errors = ref([]);
+
+// Coaches Management State (Tab Coaches)
+const coachesList = ref([]);
+const coachSearchQuery = ref('');
+const isCoachesLoading = ref(false);
+const showCoachModal = ref(false);
+const coachModalErrors = ref([]);
+const isEditingCoach = ref(false);
+const editingCoachId = ref(null);
+
+const formCoachNombre = ref('');
+const formCoachUsername = ref('');
+const formCoachPassword = ref('');
+const formCoachIdActividad = ref('');
+
+const loadCoachesManagement = async () => {
+  isCoachesLoading.value = true;
+  try {
+    const res = await api.get('/usuario/coaches', {
+      params: { search: coachSearchQuery.value }
+    });
+    coachesList.value = res.data || [];
+  } catch (err) {
+    console.error('Error al cargar entrenadores:', err);
+  } finally {
+    isCoachesLoading.value = false;
+  }
+};
+
+const openCreateCoachModal = () => {
+  isEditingCoach.value = false;
+  editingCoachId.value = null;
+  formCoachNombre.value = '';
+  formCoachUsername.value = '';
+  formCoachPassword.value = '';
+  formCoachIdActividad.value = '';
+  coachModalErrors.value = [];
+  showCoachModal.value = true;
+};
+
+const openEditCoachModal = (c) => {
+  isEditingCoach.value = true;
+  editingCoachId.value = c.id;
+  formCoachNombre.value = c.nombre;
+  formCoachUsername.value = c.username;
+  formCoachPassword.value = '';
+  formCoachIdActividad.value = c.idActividad || '';
+  coachModalErrors.value = [];
+  showCoachModal.value = true;
+};
+
+const saveCoach = async () => {
+  coachModalErrors.value = [];
+  if (!formCoachNombre.value.trim()) {
+    coachModalErrors.value.push('El nombre completo es obligatorio.');
+    return;
+  }
+
+  if (!isEditingCoach.value) {
+    if (!formCoachUsername.value.trim() || !formCoachPassword.value) {
+      coachModalErrors.value.push('El usuario y la contraseña son obligatorios.');
+      return;
+    }
+  }
+
+  try {
+    if (isEditingCoach.value) {
+      const payload = {
+        nombre: formCoachNombre.value.trim(),
+        password: formCoachPassword.value ? formCoachPassword.value : null,
+        idActividad: formCoachIdActividad.value ? Number(formCoachIdActividad.value) : null
+      };
+      await api.put(`/usuario/coach/${editingCoachId.value}`, payload);
+    } else {
+      const payload = {
+        nombre: formCoachNombre.value.trim(),
+        username: formCoachUsername.value.trim(),
+        password: formCoachPassword.value,
+        idActividad: formCoachIdActividad.value ? Number(formCoachIdActividad.value) : null
+      };
+      await api.post('/usuario/coach', payload);
+    }
+    showCoachModal.value = false;
+    loadCoachesManagement();
+    loadCoaches();
+  } catch (err) {
+    if (err.response && err.response.data && err.response.data.errors) {
+      coachModalErrors.value = err.response.data.errors;
+    } else {
+      coachModalErrors.value = ['Error al guardar el entrenador. Intente nuevamente.'];
+    }
+  }
+};
+
+const deleteCoach = async (c) => {
+  if (!confirm(`¿Estás seguro de que deseas inhabilitar a ${cleanCoachName(c.nombre)}?`)) return;
+  try {
+    await api.delete(`/usuario/coach/${c.id}`);
+    loadCoachesManagement();
+    loadCoaches();
+  } catch (err) {
+    alert('No se pudo inhabilitar al entrenador.');
+  }
+};
+
+const defaultAvatar = (nombre) => {
+  return `https://ui-avatars.com/api/?name=${encodeURIComponent(nombre)}&background=6366f1&color=fff`;
+};
 
 // Form / Drawer State
 const showDrawer = ref(false);
@@ -44,6 +157,90 @@ const formIdPlan = ref('');
 
 // Coaches dropdown state
 const coaches = ref([]);
+
+// Quick Assign Modal State
+const showQuickAssignModal = ref(false);
+const quickAssignSocio = ref(null);
+const selectedQuickActividadNombre = ref('');
+const selectedQuickCoachId = ref('');
+const isSubmittingQuickAssign = ref(false);
+const actividades = ref([]);
+
+const loadActividades = async () => {
+  try {
+    const res = await api.get('/actividades');
+    actividades.value = res.data || [];
+  } catch (err) {
+    console.error('Error cargando actividades', err);
+  }
+};
+
+const filteredQuickCoaches = computed(() => {
+  if (!selectedQuickActividadNombre.value) return coaches.value;
+  return coaches.value.filter(c => {
+    if (!c.actividadNombre) return true;
+    return c.actividadNombre.toLowerCase().trim() === selectedQuickActividadNombre.value.toLowerCase().trim();
+  });
+});
+
+const onQuickActividadChange = () => {
+  if (selectedQuickCoachId.value) {
+    const currentCoach = coaches.value.find(c => c.id === Number(selectedQuickCoachId.value));
+    if (currentCoach && currentCoach.actividadNombre && selectedQuickActividadNombre.value) {
+      if (currentCoach.actividadNombre.toLowerCase().trim() !== selectedQuickActividadNombre.value.toLowerCase().trim()) {
+        selectedQuickCoachId.value = '';
+      }
+    }
+  }
+};
+
+const onQuickCoachChange = () => {
+  if (selectedQuickCoachId.value) {
+    const currentCoach = coaches.value.find(c => c.id === Number(selectedQuickCoachId.value));
+    if (currentCoach && currentCoach.actividadNombre) {
+      selectedQuickActividadNombre.value = currentCoach.actividadNombre;
+    }
+  }
+};
+
+const openQuickAssignModal = (socio) => {
+  quickAssignSocio.value = socio;
+  selectedQuickActividadNombre.value = socio.actividadNombre && socio.actividadNombre !== 'Sin asignación' ? socio.actividadNombre : '';
+  selectedQuickCoachId.value = socio.idCoach || '';
+  showQuickAssignModal.value = true;
+};
+
+const closeQuickAssignModal = () => {
+  showQuickAssignModal.value = false;
+  quickAssignSocio.value = null;
+  selectedQuickActividadNombre.value = '';
+  selectedQuickCoachId.value = '';
+};
+
+const submitQuickAssign = async () => {
+  if (!quickAssignSocio.value || !selectedQuickCoachId.value) return;
+  isSubmittingQuickAssign.value = true;
+  try {
+    const payload = {
+      dni: quickAssignSocio.value.dni,
+      nombreCompleto: quickAssignSocio.value.nombreCompleto,
+      telefono: quickAssignSocio.value.telefono,
+      email: quickAssignSocio.value.email,
+      fechaAlta: quickAssignSocio.value.fechaAlta,
+      estado: quickAssignSocio.value.estado,
+      idPlan: quickAssignSocio.value.idPlan,
+      idCoach: Number(selectedQuickCoachId.value),
+      observacion: quickAssignSocio.value.observacion
+    };
+    await socioService.update(quickAssignSocio.value.id, payload);
+    closeQuickAssignModal();
+    fetchSocios();
+  } catch (err) {
+    handleError(err);
+  } finally {
+    isSubmittingQuickAssign.value = false;
+  }
+};
 
 const cleanCoachName = (name) => {
   if (!name) return '';
@@ -115,7 +312,8 @@ const fetchSocios = async () => {
       pageSize.value,
       search.value,
       statusFilter.value,
-      planFilter.value
+      planFilter.value,
+      actividadFilter.value
     );
     socios.value = result.data;
     currentPage.value = result.pagination.currentPage;
@@ -154,6 +352,7 @@ const clearSearch = () => {
   search.value = '';
   statusFilter.value = '';
   planFilter.value = '';
+  actividadFilter.value = '';
   currentPage.value = 1;
   fetchSocios();
 };
@@ -289,19 +488,51 @@ const formatDate = (dateStr) => {
   return d.toLocaleDateString('es-AR');
 };
 
+const isNuevoSocio = (socio) => {
+  if (!socio || !socio.fechaAlta) return false;
+  if (socio.idCoach || (socio.coachNombre && socio.coachNombre.trim() !== '' && socio.coachNombre !== 'Sin asignación')) {
+    return false;
+  }
+  const fechaAlta = new Date(socio.fechaAlta);
+  const now = new Date();
+  const diffTime = Math.abs(now - fechaAlta);
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  return diffDays <= 7;
+};
+
 onMounted(() => {
   fetchSocios();
   loadActivePlans();
   loadCoaches();
+  loadActividades();
+  loadCoachesManagement();
 });
 </script>
 
 <template>
   <div class="socios-container">
     <header class="header">
-      <h1>Gestión de Alumnos / Socios</h1>
-      <p class="subtitle">Administración de socios e inscripción con asignación de Coach</p>
+      <h1>Gestión de Alumnos & Coaches</h1>
+      <p class="subtitle">Administración de socios, entrenadores y asignación de disciplinas</p>
     </header>
+
+    <!-- Tabs Header Navigation -->
+    <div class="tabs-nav-bar">
+      <button 
+        class="tab-nav-btn" 
+        :class="{ active: activeTab === 'alumnos' }"
+        @click="activeTab = 'alumnos'"
+      >
+        👥 Alumnos ({{ totalItems }})
+      </button>
+      <button 
+        class="tab-nav-btn" 
+        :class="{ active: activeTab === 'coaches' }"
+        @click="activeTab = 'coaches'; loadCoachesManagement();"
+      >
+        🧢 Coaches / Entrenadores ({{ coachesList.length }})
+      </button>
+    </div>
 
     <!-- Error Alerts -->
     <div v-if="errors.length > 0" class="error-alert">
@@ -311,8 +542,8 @@ onMounted(() => {
       </ul>
     </div>
 
-    <!-- Main Workspace -->
-    <div class="workspace">
+    <!-- Main Workspace (Tab Alumnos) -->
+    <div v-if="activeTab === 'alumnos'" class="workspace">
       <div class="main-content">
         <!-- Filters Card -->
         <div class="filters-card">
@@ -330,6 +561,24 @@ onMounted(() => {
               <option value="">Todos los estados</option>
               <option value="Activo">Activo</option>
               <option value="Inactivo">Inactivo</option>
+            </select>
+          </div>
+
+          <div class="filter-group">
+            <select v-model="actividadFilter" @change="triggerSearch">
+              <option value="">Todas las actividades</option>
+              <option v-for="act in actividades" :key="act.id" :value="act.id">
+                {{ act.nombre }}
+              </option>
+            </select>
+          </div>
+
+          <div class="filter-group">
+            <select v-model="planFilter" @change="triggerSearch">
+              <option value="">Todos los planes</option>
+              <option v-for="plan in activePlans" :key="plan.id" :value="plan.id">
+                {{ plan.nombre }}
+              </option>
             </select>
           </div>
 
@@ -366,18 +615,30 @@ onMounted(() => {
                         {{ (socio.nombreCompleto || 'A').charAt(0).toUpperCase() }}
                       </div>
                     </div>
-                    <span>{{ socio.nombreCompleto }}</span>
+                    <div class="user-info-group">
+                      <span class="user-name-text">{{ socio.nombreCompleto }}</span>
+                      <span v-if="isNuevoSocio(socio)" class="tag-nuevo-alumno">
+                        ✨ Nuevo alumno
+                      </span>
+                    </div>
                   </div>
                 </td>
                 <td>
                   <span class="actividad-badge" :style="getActivityStyle(socio.actividadNombre)">{{ socio.actividadNombre || 'Musculación' }}</span>
                 </td>
                 <td>
-                  <span v-if="socio.coachNombre" class="coach-tag">{{ cleanCoachName(socio.coachNombre) }}</span>
-                  <span v-else class="subtle-text">Sin asignación</span>
+                  <span v-if="socio.coachNombre && socio.coachNombre !== 'Sin asignación'" :style="getCoachBadgeStyle(socio.coachNombre)">
+                    🧢 {{ cleanCoachName(socio.coachNombre) }}
+                  </span>
+                  <div v-else class="assign-coach-wrapper">
+                    <button v-if="isAdmin" @click="openQuickAssignModal(socio)" class="btn-assign-coach">
+                      + Asignar Coach
+                    </button>
+                    <span v-else :style="getCoachBadgeStyle('Sin asignación')">Sin asignación</span>
+                  </div>
                 </td>
                 <td>
-                  <span class="plan-tag">{{ socio.planNombre }}</span>
+                  <span :style="getPlanBadgeStyle(socio.planNombre)">🏷️ {{ socio.planNombre }}</span>
                 </td>
                 <td>{{ socio.telefono || '-' }}</td>
                 <td>{{ formatDate(socio.fechaAlta) }}</td>
@@ -413,6 +674,83 @@ onMounted(() => {
           <button @click="prevPage" :disabled="currentPage === 1" class="btn btn-page">Anterior</button>
           <span class="page-info">Página {{ currentPage }} de {{ totalPages }} ({{ totalItems }} items)</span>
           <button @click="nextPage" :disabled="currentPage === totalPages" class="btn btn-page">Siguiente</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Workspace (Tab Coaches) -->
+    <div v-if="activeTab === 'coaches'" class="workspace">
+      <div class="main-content">
+        <!-- Coaches Filters Card -->
+        <div class="filters-card">
+          <div class="filter-group flex-grow">
+            <input
+              type="text"
+              v-model="coachSearchQuery"
+              @input="loadCoachesManagement"
+              placeholder="Buscar coach por nombre o usuario..."
+            />
+          </div>
+          <div class="filter-buttons" v-if="isAdmin">
+            <button @click="openCreateCoachModal" class="btn btn-primary">+ Nuevo Entrenador</button>
+          </div>
+        </div>
+
+        <!-- Coaches Table -->
+        <div v-if="isCoachesLoading" class="empty-state-card">
+          <p>Cargando entrenadores...</p>
+        </div>
+
+        <div v-else-if="coachesList.length > 0" class="table-responsive">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Nombre</th>
+                <th>Usuario</th>
+                <th>Disciplina / Actividad</th>
+                <th>Alumnos Asignados</th>
+                <th v-if="isAdmin" class="actions-col">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="c in coachesList" :key="c.id">
+                <td>
+                  <div class="user-cell">
+                    <div class="table-avatar">
+                      <img :src="c.rutaAvatar ? getAvatarUrl(c.rutaAvatar) : defaultAvatar(c.nombre)" class="avatar-img-sm" alt="Avatar" />
+                    </div>
+                    <div class="user-info-group">
+                      <span :style="getCoachBadgeStyle(c.nombre)">🧢 {{ cleanCoachName(c.nombre) }}</span>
+                    </div>
+                  </div>
+                </td>
+                <td><code>@{{ c.username }}</code></td>
+                <td>
+                  <span v-if="c.actividadNombre" class="actividad-badge" :style="getActivityStyle(c.actividadNombre)">
+                    {{ c.actividadNombre }}
+                  </span>
+                  <span v-else class="subtle-text">Sin asignar</span>
+                </td>
+                <td>
+                  <span v-if="c.cupoCompleto" class="badge badge-inactive font-bold">
+                    {{ c.cantidadAlumnos }}/{{ c.cupoMaximo || 20 }} COMPLETO
+                  </span>
+                  <span v-else class="badge badge-active">
+                    {{ c.cantidadAlumnos }}/{{ c.cupoMaximo || 20 }} alumnos
+                  </span>
+                </td>
+                <td v-if="isAdmin" class="actions-cell">
+                  <button class="btn btn-sm btn-edit" @click="openEditCoachModal(c)">Editar</button>
+                  <button class="btn btn-sm btn-status-inactive" @click="deleteCoach(c)">Inhabilitar</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div v-else class="empty-state-card">
+          <span class="empty-icon">🔍</span>
+          <p class="empty-text">No se encontraron entrenadores registrados.</p>
         </div>
       </div>
     </div>
@@ -503,6 +841,109 @@ onMounted(() => {
         </form>
       </div>
     </div>
+
+    <!-- Modal de Asignación Rápida de Coach -->
+    <div v-if="showQuickAssignModal" class="modal-backdrop">
+      <div class="modal-panel">
+        <div class="modal-header">
+          <h2>Asignar Entrenador y Actividad</h2>
+          <button @click="closeQuickAssignModal" class="btn-close-modal" title="Cerrar">✕</button>
+        </div>
+
+        <form @submit.prevent="submitQuickAssign" class="modal-form" v-if="quickAssignSocio">
+          <div class="form-group">
+            <label>Alumno</label>
+            <input type="text" :value="`${quickAssignSocio.nombreCompleto} (DNI: ${quickAssignSocio.dni})`" disabled class="input-disabled" />
+          </div>
+
+          <div class="form-group">
+            <label for="sociosQuickActividadSelect">Actividad / Disciplina</label>
+            <select id="sociosQuickActividadSelect" v-model="selectedQuickActividadNombre" @change="onQuickActividadChange">
+              <option value="">-- Todas las actividades --</option>
+              <option v-for="act in actividades" :key="act.id" :value="act.nombre">
+                {{ act.nombre }}
+              </option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="quickCoachSelect">Entrenador Asignado *</label>
+            <select id="quickCoachSelect" v-model="selectedQuickCoachId" @change="onQuickCoachChange" required>
+              <option value="" disabled>-- Seleccione un entrenador --</option>
+              <option
+                v-for="c in filteredQuickCoaches"
+                :key="c.id"
+                :value="c.id"
+                :disabled="c.cupoCompleto && Number(selectedQuickCoachId) !== c.id"
+              >
+                {{ cleanCoachName(c.nombre) }} ({{ c.actividadNombre || 'Sin actividad' }}) - {{ c.alumnosActuales }}/20 {{ c.cupoCompleto ? 'COMPLETO' : 'disponibles' }}
+              </option>
+            </select>
+          </div>
+
+          <div class="form-buttons">
+            <button type="submit" class="btn btn-primary" :disabled="!selectedQuickCoachId || isSubmittingQuickAssign">
+              {{ isSubmittingQuickAssign ? 'Guardando...' : 'Confirmar Asignación' }}
+            </button>
+            <button type="button" @click="closeQuickAssignModal" class="btn btn-secondary">
+              Cancelar
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Modal Crear / Editar Coach (Admin) -->
+    <div v-if="showCoachModal" class="modal-backdrop" @click.self="showCoachModal = false">
+      <div class="modal-panel">
+        <div class="modal-header">
+          <h2>{{ isEditingCoach ? 'Editar Entrenador' : 'Crear Nuevo Entrenador' }}</h2>
+          <button @click="showCoachModal = false" class="btn-close-modal" title="Cerrar">✕</button>
+        </div>
+
+        <div v-if="coachModalErrors.length > 0" class="error-alert margin-bottom-16">
+          <ul>
+            <li v-for="(err, idx) in coachModalErrors" :key="idx">{{ err }}</li>
+          </ul>
+        </div>
+
+        <form @submit.prevent="saveCoach" class="modal-form">
+          <div class="form-group">
+            <label>Nombre Completo *</label>
+            <input type="text" v-model="formCoachNombre" required placeholder="Ej. Roberto Gómez" />
+          </div>
+
+          <div class="form-group" v-if="!isEditingCoach">
+            <label>Nombre de Usuario *</label>
+            <input type="text" v-model="formCoachUsername" required placeholder="Ej. roberto.gomez" />
+          </div>
+
+          <div class="form-group">
+            <label>{{ isEditingCoach ? 'Nueva Contraseña (dejar en blanco para mantener)' : 'Contraseña Inicial *' }}</label>
+            <input type="password" v-model="formCoachPassword" :required="!isEditingCoach" placeholder="Mínimo 6 caracteres" maxlength="16" />
+          </div>
+
+          <div class="form-group">
+            <label>Disciplina / Actividad Asignada</label>
+            <select v-model="formCoachIdActividad">
+              <option value="">-- Sin Actividad / Seleccionar después --</option>
+              <option v-for="act in actividades" :key="act.id" :value="act.id">
+                {{ act.nombre }}
+              </option>
+            </select>
+          </div>
+
+          <div class="form-buttons">
+            <button type="submit" class="btn btn-primary">
+              {{ isEditingCoach ? 'Guardar Cambios' : 'Crear Entrenador' }}
+            </button>
+            <button type="button" class="btn btn-secondary" @click="showCoachModal = false">
+              Cancelar
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -517,7 +958,7 @@ onMounted(() => {
 }
 
 .header {
-  margin-bottom: 24px;
+  margin-bottom: 20px;
   border-bottom: 1px solid var(--border);
   padding-bottom: 16px;
 }
@@ -535,6 +976,37 @@ onMounted(() => {
   font-size: 13px;
   margin-top: 4px;
   opacity: 0.75;
+}
+
+.tabs-nav-bar {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 24px;
+  border-bottom: 2px solid var(--border, #374151);
+  padding-bottom: 8px;
+}
+
+.tab-nav-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted, #9ca3af);
+  font-size: 1rem;
+  font-weight: 600;
+  padding: 10px 20px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.tab-nav-btn:hover {
+  color: var(--text-h, #ffffff);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.tab-nav-btn.active {
+  color: #ffffff;
+  background: var(--accent, #6366f1);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
 }
 
 .workspace {
@@ -614,6 +1086,57 @@ onMounted(() => {
 
 .data-table td {
   color: var(--text-h);
+  vertical-align: middle;
+}
+
+.user-cell {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.table-avatar {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  min-height: 36px;
+  border-radius: 50%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(99, 102, 241, 0.12);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  box-sizing: border-box;
+}
+
+.avatar-img-sm {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  min-height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+}
+
+.avatar-initial-sm {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--accent, #6366f1);
+  background-color: rgba(99, 102, 241, 0.15);
+}
+
+.user-info-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .data-table th {
@@ -924,16 +1447,103 @@ onMounted(() => {
 
 .error-alert {
   background-color: rgba(231, 76, 60, 0.15);
-  border: 1px solid rgba(231, 76, 60, 0.3);
   color: #c0392b;
-  padding: 15px;
+  padding: 12px;
   border-radius: 8px;
   margin-bottom: 20px;
-  font-size: 14px;
+}
+
+.user-info-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.user-name-text {
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.tag-nuevo-alumno {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: linear-gradient(135deg, #ef4444 0%, #f59e0b 100%);
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.4);
+  animation: pulseNuevoTag 1.8s infinite alternate;
+  white-space: nowrap;
+}
+
+@keyframes pulseNuevoTag {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.4);
+  }
+  100% {
+    transform: scale(1.05);
+    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.7);
+  }
 }
 
 .error-alert ul {
   margin: 8px 0 0 0;
   padding-left: 20px;
+}
+
+.btn-assign-coach {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(59, 130, 246, 0.15) 100%);
+  color: #10b981;
+  border: 1px dashed rgba(16, 185, 129, 0.5);
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-assign-coach:hover {
+  background: #10b981;
+  color: #ffffff;
+  border-style: solid;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+}
+
+.modal-quick-panel {
+  max-width: 440px !important;
+}
+
+.quick-info-text {
+  font-size: 14px;
+  color: var(--text-h);
+  line-height: 1.5;
+  margin-bottom: 12px;
+}
+
+.quick-select {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background-color: var(--code-bg);
+  color: var(--text-h);
+  font-size: 14px;
+  outline: none;
+}
+
+.quick-actions-row {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 24px;
 }
 </style>

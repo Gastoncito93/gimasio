@@ -20,7 +20,7 @@ public class SocioConfiguration : IEntityTypeConfiguration<Socio>
         builder.HasOne(s => s.Plan)
             .WithMany(p => p.Socios)
             .HasForeignKey(s => s.IdPlan)
-            .IsRequired()
+            .IsRequired(false)
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(s => s.Usuario)

@@ -4,16 +4,19 @@ import { useRouter } from 'vue-router';
 import authService from '../services/authService';
 import api from '../services/api';
 import FotosProgresoModule from '../components/FotosProgresoModule.vue';
+import { getCoachBadgeStyle, getPlanBadgeStyle } from '../utils/badgeStyles';
 
 const router = useRouter();
 const user = computed(() => authService.getUsuario() || { nombre: 'Usuario', username: 'usuario', rol: 'Ninguno' });
 const alumnoSocioId = ref(null);
+const miSocioData = ref(null);
 
 const loadAlumnoSocioId = async () => {
   if (user.value.rol === 'Alumno') {
     try {
       const res = await api.get('/socio/mi-socio');
-      if (res.data && res.data.id) {
+      if (res.data) {
+        miSocioData.value = res.data;
         alumnoSocioId.value = res.data.id;
       }
     } catch (err) {
@@ -21,6 +24,7 @@ const loadAlumnoSocioId = async () => {
         const resList = await api.get('/socio', { params: { pageSize: 100 } });
         const mySocio = resList.data.items?.find(s => s.idUsuario === user.value.id);
         if (mySocio) {
+          miSocioData.value = mySocio;
           alumnoSocioId.value = mySocio.id;
         }
       } catch (err2) {
@@ -314,19 +318,33 @@ onMounted(() => {
           </div>
           <div class="info-group">
             <span class="info-label">Plan Actual:</span>
-            <span class="info-value font-bold text-accent">{{ miInformacion.plan }}</span>
+            <span :style="getPlanBadgeStyle(miSocioData?.planNombre)">
+              🏷️ {{ miSocioData?.planNombre && miSocioData.planNombre !== 'Sin plan' ? miSocioData.planNombre : 'Sin plan asignado (Pendiente)' }}
+            </span>
           </div>
           <div class="info-group">
             <span class="info-label">Costo Mensual:</span>
-            <span class="info-value">{{ miInformacion.precioPlan }}</span>
+            <span class="info-value">
+              {{ miSocioData?.idPlan && miSocioData?.planPrecio ? `$${miSocioData.planPrecio.toLocaleString()} / mes` : 'Sin costo asignado' }}
+            </span>
+          </div>
+          <div class="info-group">
+            <span class="info-label">Entrenador:</span>
+            <span :style="getCoachBadgeStyle(miSocioData?.coachNombre)">
+              🧢 {{ miSocioData?.coachNombre && miSocioData.coachNombre !== 'Sin asignación' ? miSocioData.coachNombre : 'Sin entrenador asignado' }}
+            </span>
+          </div>
+          <div class="info-group">
+            <span class="info-label">Actividad:</span>
+            <span class="info-value">
+              {{ miSocioData?.actividadNombre && miSocioData.actividadNombre !== 'Sin asignación' ? miSocioData.actividadNombre : 'Sin actividad asignada' }}
+            </span>
           </div>
           <div class="info-group">
             <span class="info-label">Estado de Cuenta:</span>
-            <span class="status-badge badge-success">{{ miInformacion.estadoCuenta }}</span>
-          </div>
-          <div class="info-group">
-            <span class="info-label">Próximo Vencimiento:</span>
-            <span class="info-value">{{ miInformacion.proximoVencimiento }}</span>
+            <span class="status-badge" :class="miSocioData?.estado === 'Inactivo' ? 'badge-danger' : 'badge-success'">
+              {{ miSocioData?.estado || 'Activo' }}
+            </span>
           </div>
         </div>
       </div>

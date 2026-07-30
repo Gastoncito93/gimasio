@@ -1,7 +1,7 @@
 import api from './api';
 
 export default {
-  async getAll(page = 1, pageSize = 10, search = '', estado = '', idPlan = '') {
+  async getAll(page = 1, pageSize = 10, search = '', estado = '', idPlan = '', idActividad = '') {
     const response = await api.get('/socio', {
       params: {
         page,
@@ -9,6 +9,7 @@ export default {
         search,
         estado,
         idPlan,
+        idActividad,
       },
     });
     return response.data;

@@ -27,7 +27,7 @@ public class DashboardController : ControllerBase
         var now = DateTime.UtcNow;
         var inicioMes = new DateTime(now.Year, now.Month, 1);
         var recaudadoEsteMes = await _context.Cuotas
-            .Where(c => c.Estado == "Pagada" && c.FechaPago.HasValue && c.FechaPago.Value >= inicioMes)
+            .Where(c => (c.Estado == "Pagada" || c.Estado == "Pagado") && c.FechaPago.HasValue && c.FechaPago.Value >= inicioMes)
             .SumAsync(c => (decimal?)c.Monto) ?? 0m;
 
         return Ok(new

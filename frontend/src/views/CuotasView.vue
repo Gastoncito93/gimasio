@@ -28,6 +28,29 @@ const statusFilter = ref('');
 const periodFilter = ref('');
 const errors = ref([]);
 
+const summaryData = ref({
+  totalRecaudado: 0,
+  totalPendiente: 0,
+  cantidadPagadas: 0,
+  cantidadPendientes: 0
+});
+
+const periodOptions = computed(() => {
+  const list = [];
+  const now = new Date();
+  const months = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+  
+  for (let i = 0; i < 12; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const year = d.getFullYear();
+    const monthIdx = d.getMonth();
+    const value = `${year}${(monthIdx + 1).toString().padStart(2, '0')}`;
+    const label = `${months[monthIdx]} ${year}`;
+    list.push({ value, label });
+  }
+  return list;
+});
+
 // Modals State
 const showCreateModal = ref(false);
 const showEditObsModal = ref(false);
@@ -190,6 +213,7 @@ const triggerSearch = () => {
 const clearSearch = () => {
   search.value = '';
   statusFilter.value = '';
+  periodFilter.value = '';
   currentPage.value = 1;
   fetchCuotas();
 };
@@ -403,12 +427,19 @@ const fetchCuotas = async () => {
       pageSize.value,
       search.value,
       statusFilter.value,
-      ''
+      periodFilter.value
     );
-    cuotas.value = result.data;
-    currentPage.value = result.pagination.currentPage;
-    totalPages.value = result.pagination.totalPages;
-    totalItems.value = result.pagination.totalItems;
+    cuotas.value = result.data || [];
+    currentPage.value = result.pagination?.currentPage || 1;
+    totalPages.value = result.pagination?.totalPages || 0;
+    totalItems.value = result.pagination?.totalItems || 0;
+
+    summaryData.value = {
+      totalRecaudado: result.totalRecaudado || 0,
+      totalPendiente: result.totalPendiente || 0,
+      cantidadPagadas: result.cantidadPagadas || 0,
+      cantidadPendientes: result.cantidadPendientes || 0
+    };
   } catch (err) {
     handleError(err);
   }
@@ -451,6 +482,33 @@ onMounted(async () => {
     <!-- Main Workspace (Wide list view) -->
     <div class="workspace">
       <div class="main-content">
+        <!-- Resumen Financiero del Período -->
+        <div class="summary-cards-grid margin-bottom-20">
+          <div class="kpi-card bg-emerald">
+            <div class="kpi-icon">💵</div>
+            <div class="kpi-info">
+              <span class="kpi-value">${{ summaryData.totalRecaudado.toLocaleString('es-AR') }}</span>
+              <span class="kpi-label">Recaudado (Mes / Filtro Seleccionado)</span>
+            </div>
+          </div>
+
+          <div class="kpi-card bg-blue">
+            <div class="kpi-icon">✅</div>
+            <div class="kpi-info">
+              <span class="kpi-value">{{ summaryData.cantidadPagadas }}</span>
+              <span class="kpi-label">Cuotas Cobradas</span>
+            </div>
+          </div>
+
+          <div class="kpi-card bg-amber">
+            <div class="kpi-icon">⏳</div>
+            <div class="kpi-info">
+              <span class="kpi-value">${{ summaryData.totalPendiente.toLocaleString('es-AR') }}</span>
+              <span class="kpi-label">Monto Pendiente de Cobro ({{ summaryData.cantidadPendientes }} cuotas)</span>
+            </div>
+          </div>
+        </div>
+
         <!-- Filters Area -->
         <div class="filters-card">
           <div class="filter-group flex-grow">
@@ -463,10 +521,19 @@ onMounted(async () => {
           </div>
 
           <div class="filter-group select-filter">
+            <select v-model="periodFilter" @change="triggerSearch">
+              <option value="">-- Todos los meses --</option>
+              <option v-for="p in periodOptions" :key="p.value" :value="p.value">
+                🗓️ {{ p.label }}
+              </option>
+            </select>
+          </div>
+
+          <div class="filter-group select-filter">
             <select v-model="statusFilter" @change="triggerSearch">
-              <option value="">Todos los estados</option>
+              <option value="">-- Todos los estados --</option>
+              <option value="Pagada">Pagada / Pagado</option>
               <option value="Pendiente">Pendiente</option>
-              <option value="Pagado">Pagado</option>
               <option value="Anulado">Anulado</option>
             </select>
           </div>
@@ -1547,6 +1614,71 @@ onMounted(async () => {
   font-size: 16px;
   margin: 0;
   font-style: italic;
+}
+
+/* Summary Cards KPI Grid */
+.summary-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.margin-bottom-20 {
+  margin-bottom: 20px;
+}
+
+.kpi-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background-color: var(--code-bg);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.kpi-icon {
+  font-size: 24px;
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bg-emerald {
+  background-color: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+}
+
+.bg-blue {
+  background-color: rgba(59, 130, 246, 0.12);
+  color: #3b82f6;
+}
+
+.bg-amber {
+  background-color: rgba(245, 158, 11, 0.12);
+  color: #f59e0b;
+}
+
+.kpi-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.kpi-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-h);
+}
+
+.kpi-label {
+  font-size: 12px;
+  color: var(--text);
+  opacity: 0.8;
 }
 
 .period-select-grid {

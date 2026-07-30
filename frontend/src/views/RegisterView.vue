@@ -12,18 +12,136 @@ const dni = ref('');
 const email = ref('');
 const telefono = ref('');
 
+const fieldErrors = ref({
+  nombre: '',
+  dni: '',
+  username: '',
+  password: '',
+  email: '',
+  telefono: ''
+});
+
 const errors = ref([]);
 const isLoading = ref(false);
 
+const validateNombre = () => {
+  const val = nombre.value.trim();
+  if (!val) {
+    fieldErrors.value.nombre = 'El nombre completo es obligatorio.';
+    return false;
+  }
+  if (!/^[a-zA-ZáéíóúñÁÉÍÓÚÑ\s]+$/.test(val)) {
+    fieldErrors.value.nombre = 'El nombre solo puede contener letras y espacios (sin números ni símbolos).';
+    return false;
+  }
+  if (val.length < 2) {
+    fieldErrors.value.nombre = 'El nombre debe tener al menos 2 caracteres.';
+    return false;
+  }
+  fieldErrors.value.nombre = '';
+  return true;
+};
+
+const validateDni = () => {
+  const val = dni.value.trim();
+  if (!val) {
+    fieldErrors.value.dni = 'El DNI es obligatorio.';
+    return false;
+  }
+  if (!/^\d+$/.test(val)) {
+    fieldErrors.value.dni = 'El DNI solo puede contener números (sin letras, puntos ni símbolos).';
+    return false;
+  }
+  if (val.length < 7 || val.length > 10) {
+    fieldErrors.value.dni = 'El DNI debe tener entre 7 y 10 dígitos.';
+    return false;
+  }
+  fieldErrors.value.dni = '';
+  return true;
+};
+
+const validateUsername = () => {
+  const val = username.value.trim();
+  if (!val) {
+    fieldErrors.value.username = 'El nombre de usuario es obligatorio.';
+    return false;
+  }
+  if (!/^[a-zA-Z0-9_]+$/.test(val)) {
+    fieldErrors.value.username = 'El usuario solo puede contener letras, números y guión bajo _ (sin espacios ni símbolos).';
+    return false;
+  }
+  if (val.length < 3 || val.length > 30) {
+    fieldErrors.value.username = 'El usuario debe tener entre 3 y 30 caracteres.';
+    return false;
+  }
+  fieldErrors.value.username = '';
+  return true;
+};
+
+const validatePassword = () => {
+  const val = password.value;
+  if (!val) {
+    fieldErrors.value.password = 'La contraseña es obligatoria.';
+    return false;
+  }
+  if (val.length < 6 || val.length > 16) {
+    fieldErrors.value.password = 'La contraseña debe tener entre 6 y 16 caracteres.';
+    return false;
+  }
+  if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(val)) {
+    fieldErrors.value.password = 'La contraseña debe incluir al menos una letra mayúscula, una minúscula y un número.';
+    return false;
+  }
+  fieldErrors.value.password = '';
+  return true;
+};
+
+const validateEmail = () => {
+  const val = email.value.trim();
+  if (!val) {
+    fieldErrors.value.email = '';
+    return true;
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) {
+    fieldErrors.value.email = 'Ingresa un correo electrónico válido (ej. usuario@email.com).';
+    return false;
+  }
+  fieldErrors.value.email = '';
+  return true;
+};
+
+const validateTelefono = () => {
+  const val = telefono.value.trim();
+  if (!val) {
+    fieldErrors.value.telefono = '';
+    return true;
+  }
+  if (!/^[0-9\s\+\-\(\)]+$/.test(val)) {
+    fieldErrors.value.telefono = 'El teléfono solo puede contener números, espacios y los símbolos + - ( ).';
+    return false;
+  }
+  fieldErrors.value.telefono = '';
+  return true;
+};
+
+const validateAll = () => {
+  const v1 = validateNombre();
+  const v2 = validateDni();
+  const v3 = validateUsername();
+  const v4 = validatePassword();
+  const v5 = validateEmail();
+  const v6 = validateTelefono();
+  return v1 && v2 && v3 && v4 && v5 && v6;
+};
+
 const onRegister = async () => {
   errors.value = [];
-  isLoading.value = true;
-
-  if (!nombre.value.trim() || !username.value.trim() || !password.value || !dni.value.trim()) {
-    errors.value.push('Por favor, completa todos los campos obligatorios (*).');
-    isLoading.value = false;
+  
+  if (!validateAll()) {
     return;
   }
+
+  isLoading.value = true;
 
   const payload = {
     nombre: nombre.value.trim(),
@@ -42,10 +160,18 @@ const onRegister = async () => {
     window.dispatchEvent(new CustomEvent('user-profile-updated'));
     router.push('/dashboard');
   } catch (err) {
-    if (err.response && err.response.data && err.response.data.errors) {
-      errors.value = err.response.data.errors;
+    if (err.response?.data?.errors) {
+      if (Array.isArray(err.response.data.errors)) {
+        errors.value = err.response.data.errors;
+      } else if (typeof err.response.data.errors === 'object') {
+        errors.value = Object.values(err.response.data.errors).flat();
+      } else {
+        errors.value = [String(err.response.data.errors)];
+      }
+    } else if (err.response?.data?.message) {
+      errors.value = [err.response.data.message];
     } else {
-      errors.value = ['Ha ocurrido un error al procesar tu inscripción. Intenta nuevamente.'];
+      errors.value = ['Ha ocurrido un error al procesar tu inscripción. Verifica que el DNI o usuario no estén registrados.'];
     }
   } finally {
     isLoading.value = false;
@@ -72,16 +198,19 @@ const goToLogin = () => {
         </ul>
       </div>
 
-      <form @submit.prevent="onRegister" class="form">
+      <form @submit.prevent="onRegister" class="form" novalidate>
         <div class="form-group">
           <label for="nombre">Nombre Completo *</label>
           <input
             id="nombre"
             type="text"
             v-model="nombre"
-            required
+            @input="validateNombre"
+            @blur="validateNombre"
+            :class="{ 'input-error': fieldErrors.nombre }"
             placeholder="Ej. Juan Pérez"
           />
+          <span v-if="fieldErrors.nombre" class="field-error-text">{{ fieldErrors.nombre }}</span>
         </div>
 
         <div class="form-group">
@@ -90,9 +219,12 @@ const goToLogin = () => {
             id="dni"
             type="text"
             v-model="dni"
-            required
+            @input="validateDni"
+            @blur="validateDni"
+            :class="{ 'input-error': fieldErrors.dni }"
             placeholder="Ej. 40123456"
           />
+          <span v-if="fieldErrors.dni" class="field-error-text">{{ fieldErrors.dni }}</span>
         </div>
 
         <div class="form-group">
@@ -101,9 +233,12 @@ const goToLogin = () => {
             id="username"
             type="text"
             v-model="username"
-            required
+            @input="validateUsername"
+            @blur="validateUsername"
+            :class="{ 'input-error': fieldErrors.username }"
             placeholder="Ej. juanperez"
           />
+          <span v-if="fieldErrors.username" class="field-error-text">{{ fieldErrors.username }}</span>
         </div>
 
         <div class="form-group">
@@ -111,10 +246,14 @@ const goToLogin = () => {
           <input
             id="password"
             type="password"
+            maxlength="16"
             v-model="password"
-            required
-            placeholder="Mínimo 6 caracteres"
+            @input="validatePassword"
+            @blur="validatePassword"
+            :class="{ 'input-error': fieldErrors.password }"
+            placeholder="Entre 6 y 16 caracteres (mayúscula, minúscula y número)"
           />
+          <span v-if="fieldErrors.password" class="field-error-text">{{ fieldErrors.password }}</span>
         </div>
 
         <div class="form-group">
@@ -123,8 +262,12 @@ const goToLogin = () => {
             id="email"
             type="email"
             v-model="email"
+            @input="validateEmail"
+            @blur="validateEmail"
+            :class="{ 'input-error': fieldErrors.email }"
             placeholder="Ej. alumno@gmail.com"
           />
+          <span v-if="fieldErrors.email" class="field-error-text">{{ fieldErrors.email }}</span>
         </div>
 
         <div class="form-group">
@@ -133,8 +276,12 @@ const goToLogin = () => {
             id="telefono"
             type="text"
             v-model="telefono"
+            @input="validateTelefono"
+            @blur="validateTelefono"
+            :class="{ 'input-error': fieldErrors.telefono }"
             placeholder="Ej. 11-4455-6677"
           />
+          <span v-if="fieldErrors.telefono" class="field-error-text">{{ fieldErrors.telefono }}</span>
         </div>
 
         <button type="submit" class="btn-submit" :disabled="isLoading">
@@ -196,7 +343,7 @@ const goToLogin = () => {
 }
 
 .form-group {
-  margin-bottom: 16px;
+  margin-bottom: 18px;
 }
 
 .form-group label {
@@ -217,10 +364,25 @@ const goToLogin = () => {
   color: inherit;
   box-sizing: border-box;
   outline: none;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
 }
 
 .form-group input:focus {
   border-color: var(--accent);
+}
+
+.form-group input.input-error {
+  border-color: #ef4444 !important;
+  background-color: rgba(239, 68, 68, 0.06) !important;
+}
+
+.field-error-text {
+  display: block;
+  font-size: 12px;
+  color: #ef4444;
+  margin-top: 5px;
+  font-weight: 600;
+  line-height: 1.3;
 }
 
 .btn-submit {

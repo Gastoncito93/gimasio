@@ -10,6 +10,7 @@ public class CoachSelectItemDto
     public int Id { get; set; }
     public string Nombre { get; set; } = string.Empty;
     public string Username { get; set; } = string.Empty;
+    public string ActividadNombre { get; set; } = "Musculación";
     public int AlumnosActuales { get; set; }
     public int CupoMaximo { get; set; } = 20;
     public bool CupoCompleto => AlumnosActuales >= CupoMaximo;
@@ -17,7 +18,7 @@ public class CoachSelectItemDto
 
 public interface ISocioService
 {
-    Task<PagedResultDto<SocioResponseDto>> GetPagedAsync(int page, int pageSize, string? search, string? estado, int? idPlan);
+    Task<PagedResultDto<SocioResponseDto>> GetPagedAsync(int page, int pageSize, string? search, string? estado, int? idPlan, int? idActividad = null);
     Task<SocioResponseDto?> GetByIdAsync(int id);
     Task<SocioResponseDto?> GetByUsuarioIdAsync(int userId);
     Task<IEnumerable<SocioSearchResultDto>> BuscarAsync(string q, int limit);

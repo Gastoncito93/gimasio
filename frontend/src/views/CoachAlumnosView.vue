@@ -1,13 +1,109 @@
 <script setup>
-import { ref, onMounted, watch } from 'vue';
+import { ref, onMounted, watch, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import api from '../services/api';
+import { getCoachBadgeStyle, getPlanBadgeStyle } from '../utils/badgeStyles';
+
+import authService from '../services/authService';
+import socioService from '../services/socioService';
 
 const router = useRouter();
 const alumnos = ref([]);
 const searchQuery = ref('');
 const isLoading = ref(false);
 const errorMessage = ref('');
+const activeTab = ref('nuevos');
+
+const isAdmin = computed(() => authService.hasRole('Administrador'));
+
+const coaches = ref([]);
+const actividades = ref([]);
+const showQuickModal = ref(false);
+const quickSocio = ref(null);
+const quickSelectedActividad = ref('');
+const quickSelectedCoachId = ref('');
+const isSubmittingQuick = ref(false);
+
+const loadCoachesAndActividades = async () => {
+  try {
+    const [cRes, aRes] = await Promise.all([
+      api.get('/socio/coaches'),
+      api.get('/actividades')
+    ]);
+    coaches.value = cRes.data || [];
+    actividades.value = aRes.data || [];
+  } catch (err) {
+    console.error('Error cargando coaches y actividades:', err);
+  }
+};
+
+const filteredQuickCoaches = computed(() => {
+  if (!quickSelectedActividad.value) return coaches.value;
+  return coaches.value.filter(c => {
+    if (!c.actividadNombre) return true;
+    return c.actividadNombre.toLowerCase().trim() === quickSelectedActividad.value.toLowerCase().trim();
+  });
+});
+
+const onActividadChange = () => {
+  if (quickSelectedCoachId.value) {
+    const currentCoach = coaches.value.find(c => c.id === Number(quickSelectedCoachId.value));
+    if (currentCoach && currentCoach.actividadNombre && quickSelectedActividad.value) {
+      if (currentCoach.actividadNombre.toLowerCase().trim() !== quickSelectedActividad.value.toLowerCase().trim()) {
+        quickSelectedCoachId.value = '';
+      }
+    }
+  }
+};
+
+const onCoachChange = () => {
+  if (quickSelectedCoachId.value) {
+    const currentCoach = coaches.value.find(c => c.id === Number(quickSelectedCoachId.value));
+    if (currentCoach && currentCoach.actividadNombre) {
+      quickSelectedActividad.value = currentCoach.actividadNombre;
+    }
+  }
+};
+
+const openQuickModal = (alumno) => {
+  quickSocio.value = alumno;
+  quickSelectedActividad.value = alumno.actividadNombre && alumno.actividadNombre !== 'Sin asignación' ? alumno.actividadNombre : '';
+  quickSelectedCoachId.value = alumno.idCoach || '';
+  showQuickModal.value = true;
+};
+
+const closeQuickModal = () => {
+  showQuickModal.value = false;
+  quickSocio.value = null;
+  quickSelectedActividad.value = '';
+  quickSelectedCoachId.value = '';
+};
+
+const submitQuickAssign = async () => {
+  if (!quickSocio.value || !quickSelectedCoachId.value) return;
+  isSubmittingQuick.value = true;
+  try {
+    const fullSocio = await socioService.getById(quickSocio.value.id);
+    const payload = {
+      dni: fullSocio.dni,
+      nombreCompleto: fullSocio.nombreCompleto,
+      telefono: fullSocio.telefono,
+      email: fullSocio.email,
+      fechaAlta: fullSocio.fechaAlta,
+      estado: fullSocio.estado,
+      idPlan: fullSocio.idPlan,
+      idCoach: Number(quickSelectedCoachId.value),
+      observacion: fullSocio.observacion
+    };
+    await socioService.update(quickSocio.value.id, payload);
+    closeQuickModal();
+    await fetchAlumnos();
+  } catch (err) {
+    console.error('Error al asignar coach y actividad:', err);
+  } finally {
+    isSubmittingQuick.value = false;
+  }
+};
 
 const getAvatarUrl = (ruta) => {
   if (!ruta) return null;
@@ -66,8 +162,41 @@ const goToDetalle = (id) => {
   router.push(`/coach/alumnos/${id}`);
 };
 
+const isNuevoSocio = (alumno) => {
+  if (!alumno || !alumno.fechaAlta) return false;
+  if (alumno.idCoach || (alumno.coachNombre && alumno.coachNombre.trim() !== '' && alumno.coachNombre !== 'Sin asignación')) {
+    return false;
+  }
+  const fechaAlta = new Date(alumno.fechaAlta);
+  const now = new Date();
+  const diffTime = Math.abs(now - fechaAlta);
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  return diffDays <= 7;
+};
+
+const nuevosAlumnos = computed(() => {
+  return alumnos.value.filter(a => isNuevoSocio(a));
+});
+
+const activosAlumnos = computed(() => {
+  return alumnos.value.filter(a => a.estado === 'Activo' && !isNuevoSocio(a));
+});
+
+const inactivosAlumnos = computed(() => {
+  return alumnos.value.filter(a => a.estado === 'Inactivo');
+});
+
+const displayedAlumnos = computed(() => {
+  if (activeTab.value === 'nuevos') return nuevosAlumnos.value;
+  if (activeTab.value === 'inactivos') return inactivosAlumnos.value;
+  return activosAlumnos.value;
+});
+
 onMounted(() => {
   fetchAlumnos();
+  if (isAdmin.value) {
+    loadCoachesAndActividades();
+  }
 });
 </script>
 
@@ -90,6 +219,36 @@ onMounted(() => {
       </div>
     </header>
 
+    <!-- Tabs Navigation -->
+    <div class="tabs-container">
+      <button
+        class="tab-btn"
+        :class="{ active: activeTab === 'nuevos' }"
+        @click="activeTab = 'nuevos'"
+      >
+        <span>✨ Nuevos Alumnos</span>
+        <span class="tab-badge badge-nuevo">{{ nuevosAlumnos.length }}</span>
+      </button>
+
+      <button
+        class="tab-btn"
+        :class="{ active: activeTab === 'activos' }"
+        @click="activeTab = 'activos'"
+      >
+        <span>✅ Alumnos Activos</span>
+        <span class="tab-badge badge-activo">{{ activosAlumnos.length }}</span>
+      </button>
+
+      <button
+        class="tab-btn"
+        :class="{ active: activeTab === 'inactivos' }"
+        @click="activeTab = 'inactivos'"
+      >
+        <span>🔴 Inactivos</span>
+        <span class="tab-badge badge-inactivo">{{ inactivosAlumnos.length }}</span>
+      </button>
+    </div>
+
     <div v-if="errorMessage" class="alert alert-error">
       {{ errorMessage }}
     </div>
@@ -99,15 +258,17 @@ onMounted(() => {
       <p>Cargando lista de alumnos...</p>
     </div>
 
-    <div v-else-if="alumnos.length === 0" class="empty-state">
+    <div v-else-if="displayedAlumnos.length === 0" class="empty-state">
       <span class="empty-icon">👥</span>
-      <h3>No se encontraron alumnos</h3>
+      <h3>No hay alumnos en esta sección</h3>
       <p v-if="searchQuery">No hay resultados que coincidan con "{{ searchQuery }}".</p>
-      <p v-else>Actualmente no hay alumnos asignados para mostrar.</p>
+      <p v-else-if="activeTab === 'nuevos'">Actualmente no hay alumnos nuevos pendientes de asignación.</p>
+      <p v-else-if="activeTab === 'activos'">Actualmente no hay alumnos activos asignados.</p>
+      <p v-else>No hay alumnos inactivos.</p>
     </div>
 
     <div v-else class="alumnos-grid">
-      <div v-for="alumno in alumnos" :key="alumno.id" class="alumno-card">
+      <div v-for="alumno in displayedAlumnos" :key="alumno.id" class="alumno-card">
         <div class="card-top">
           <div class="avatar-wrapper">
             <img
@@ -122,9 +283,14 @@ onMounted(() => {
           </div>
 
           <div class="card-identity">
-            <h3 class="alumno-name">{{ alumno.nombreCompleto || alumno.nombre }}</h3>
+            <div class="name-badge-header">
+              <h3 class="alumno-name">{{ alumno.nombreCompleto || alumno.nombre }}</h3>
+              <span v-if="isNuevoSocio(alumno)" class="tag-nuevo-alumno">
+                ✨ Nuevo alumno
+              </span>
+            </div>
             <span v-if="alumno.username" class="alumno-username">@{{ alumno.username }}</span>
-            <span class="badge-plan">{{ alumno.planNombre }}</span>
+            <span :style="getPlanBadgeStyle(alumno.planNombre)">🏷️ {{ alumno.planNombre }}</span>
           </div>
         </div>
 
@@ -150,7 +316,16 @@ onMounted(() => {
 
           <div class="info-row">
             <span class="info-label">Coach Asignado:</span>
-            <span class="info-val font-bold">{{ alumno.coachNombre || 'Sin asignación' }}</span>
+            <div class="coach-val-wrapper">
+              <span :style="getCoachBadgeStyle(alumno.coachNombre)">🧢 {{ alumno.coachNombre || 'Sin asignación' }}</span>
+              <button
+                v-if="isAdmin"
+                @click.stop="openQuickModal(alumno)"
+                class="btn-quick-assign-sm"
+              >
+                ✏️ Asignar / Cambiar
+              </button>
+            </div>
           </div>
 
           <div class="info-row">
@@ -174,6 +349,57 @@ onMounted(() => {
             Ver detalle →
           </button>
         </div>
+      </div>
+    </div>
+
+    <!-- Modal de Asignación Rápida de Coach y Actividad (Admin) -->
+    <div v-if="showQuickModal" class="modal-backdrop">
+      <div class="modal-panel">
+        <div class="modal-header">
+          <h2>Asignar Entrenador y Actividad</h2>
+          <button @click="closeQuickModal" class="btn-close-modal" title="Cerrar">✕</button>
+        </div>
+
+        <form @submit.prevent="submitQuickAssign" class="modal-form" v-if="quickSocio">
+          <div class="form-group">
+            <label>Alumno</label>
+            <input type="text" :value="`${quickSocio.nombreCompleto || quickSocio.nombre} (DNI: ${quickSocio.dni})`" disabled class="input-disabled" />
+          </div>
+
+          <div class="form-group">
+            <label for="quickActividadSelect">Actividad / Disciplina</label>
+            <select id="quickActividadSelect" v-model="quickSelectedActividad" @change="onActividadChange">
+              <option value="">-- Todas las actividades --</option>
+              <option v-for="act in actividades" :key="act.id" :value="act.nombre">
+                {{ act.nombre }}
+              </option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="quickCoachSelect">Entrenador Asignado *</label>
+            <select id="quickCoachSelect" v-model="quickSelectedCoachId" @change="onCoachChange" required>
+              <option value="" disabled>-- Seleccione un entrenador --</option>
+              <option
+                v-for="c in filteredQuickCoaches"
+                :key="c.id"
+                :value="c.id"
+                :disabled="c.cupoCompleto && Number(quickSelectedCoachId) !== c.id"
+              >
+                {{ c.nombre }} ({{ c.actividadNombre || 'Sin actividad' }}) - {{ c.alumnosActuales }}/20 {{ c.cupoCompleto ? 'COMPLETO' : 'disponibles' }}
+              </option>
+            </select>
+          </div>
+
+          <div class="form-buttons">
+            <button type="submit" class="btn btn-primary" :disabled="!quickSelectedCoachId || isSubmittingQuick">
+              {{ isSubmittingQuick ? 'Guardando...' : 'Confirmar Asignación' }}
+            </button>
+            <button type="button" @click="closeQuickModal" class="btn btn-secondary">
+              Cancelar
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   </div>
@@ -464,10 +690,105 @@ onMounted(() => {
 .alert-error {
   background-color: rgba(239, 68, 68, 0.12);
   border: 1px solid rgba(239, 68, 68, 0.3);
-  color: #991b1b;
+  color: #ef4444;
   padding: 12px 16px;
   border-radius: 8px;
-  font-size: 14px;
   margin-bottom: 20px;
+}
+
+.name-badge-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.tag-nuevo-alumno {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: linear-gradient(135deg, #ef4444 0%, #f59e0b 100%);
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.4);
+  animation: pulseNuevoTag 1.8s infinite alternate;
+  white-space: nowrap;
+}
+
+@keyframes pulseNuevoTag {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.4);
+  }
+  100% {
+    transform: scale(1.04);
+    box-shadow: 0 4px 14px rgba(245, 158, 11, 0.6);
+  }
+}
+
+.tabs-container {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 24px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.tab-btn {
+  background: var(--code-bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  padding: 10px 18px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  transition: all 0.2s ease;
+}
+
+.tab-btn:hover {
+  border-color: var(--accent);
+  color: var(--text-h);
+}
+
+.tab-btn.active {
+  background: var(--accent-bg);
+  color: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 2px 10px rgba(212, 175, 55, 0.15);
+}
+
+.tab-badge {
+  padding: 3px 9px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.badge-nuevo {
+  background: rgba(16, 185, 129, 0.2);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.4);
+}
+
+.badge-activo {
+  background: rgba(59, 130, 246, 0.2);
+  color: #3b82f6;
+  border: 1px solid rgba(59, 130, 246, 0.4);
+}
+
+.badge-inactivo {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.4);
 }
 </style>

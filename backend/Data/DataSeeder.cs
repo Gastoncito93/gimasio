@@ -20,6 +20,10 @@ public static class DataSeeder
         try { await context.Database.ExecuteSqlRawAsync("ALTER TABLE SociosProgresos ADD COLUMN EjercicioNombre VARCHAR(255) NULL;"); } catch { }
         try { await context.Database.ExecuteSqlRawAsync("ALTER TABLE SociosProgresos ADD COLUMN ValorMetrica DECIMAL(18,2) NULL;"); } catch { }
         try { await context.Database.ExecuteSqlRawAsync("ALTER TABLE SociosProgresos ADD COLUMN UnidadMetrica VARCHAR(255) NULL;"); } catch { }
+        try { await context.Database.ExecuteSqlRawAsync("ALTER TABLE Usuarios ADD COLUMN DebeCambiarPassword TINYINT(1) NOT NULL DEFAULT 1;"); } catch { }
+        try { await context.Database.ExecuteSqlRawAsync("ALTER TABLE Usuarios ADD COLUMN TokenRecuperacion VARCHAR(255) NULL;"); } catch { }
+        try { await context.Database.ExecuteSqlRawAsync("ALTER TABLE Usuarios ADD COLUMN TokenRecuperacionExpiracion DATETIME NULL;"); } catch { }
+        try { await context.Database.ExecuteSqlRawAsync("ALTER TABLE Socios MODIFY COLUMN IdPlan INT NULL;"); } catch { }
 
         // 1. Seed / Normalizar Roles
         var rolAdmin = await context.Roles.FirstOrDefaultAsync(r => r.Id == 1);
@@ -312,5 +316,33 @@ public static class DataSeeder
 
             await context.SaveChangesAsync();
         }
+
+        // 7. Seed de Cuotas del Mes para Socios Activos
+        var activeSocios = await context.Socios.Include(s => s.Plan).Where(s => s.Estado == "Activo").ToListAsync();
+        var currentPeriodo = int.Parse(DateTime.UtcNow.ToString("yyyyMM"));
+        var currentMonthStart = new DateTime(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1);
+
+        int countSeeded = 0;
+        foreach (var s in activeSocios)
+        {
+            var planPrice = s.Plan?.PrecioMensual ?? 15000m;
+            if (planPrice <= 0) planPrice = 15000m;
+
+            if (!await context.Cuotas.AnyAsync(c => c.IdSocio == s.Id && c.Periodo == currentPeriodo))
+            {
+                context.Cuotas.Add(new Cuota
+                {
+                    IdSocio = s.Id,
+                    Periodo = currentPeriodo,
+                    Monto = planPrice,
+                    FechaVencimiento = currentMonthStart.AddDays(9),
+                    FechaPago = DateTime.UtcNow.AddDays(-countSeeded),
+                    Estado = "Pagada",
+                    Observacion = "Cuota abonada en término"
+                });
+                countSeeded++;
+            }
+        }
+        await context.SaveChangesAsync();
     }
 }

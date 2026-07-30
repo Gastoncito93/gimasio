@@ -1,8 +1,11 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import api from '../services/api';
+import authService from '../services/authService';
+import socioService from '../services/socioService';
 import FotosProgresoModule from '../components/FotosProgresoModule.vue';
+import { getCoachBadgeStyle, getPlanBadgeStyle } from '../utils/badgeStyles';
 
 const route = useRoute();
 const router = useRouter();
@@ -12,10 +15,116 @@ const isLoading = ref(true);
 const errorMessage = ref('');
 const isForbidden = ref(false);
 
+const isAdmin = computed(() => authService.hasRole('Administrador'));
+const coaches = ref([]);
+const showAssignModal = ref(false);
+const selectedActividadNombre = ref('');
+const selectedCoachId = ref('');
+const isSubmittingAssign = ref(false);
+const actividades = ref([]);
+
+const loadCoaches = async () => {
+  try {
+    const [cRes, aRes] = await Promise.all([
+      api.get('/socio/coaches'),
+      api.get('/actividades')
+    ]);
+    coaches.value = cRes.data || [];
+    actividades.value = aRes.data || [];
+  } catch (err) {
+    console.error('Error cargando coaches y actividades', err);
+  }
+};
+
+const filteredCoaches = computed(() => {
+  if (!selectedActividadNombre.value) return coaches.value;
+  return coaches.value.filter(c => {
+    if (!c.actividadNombre) return true;
+    return c.actividadNombre.toLowerCase().trim() === selectedActividadNombre.value.toLowerCase().trim();
+  });
+});
+
+const onActividadChange = () => {
+  if (selectedCoachId.value) {
+    const currentCoach = coaches.value.find(c => c.id === Number(selectedCoachId.value));
+    if (currentCoach && currentCoach.actividadNombre && selectedActividadNombre.value) {
+      if (currentCoach.actividadNombre.toLowerCase().trim() !== selectedActividadNombre.value.toLowerCase().trim()) {
+        selectedCoachId.value = '';
+      }
+    }
+  }
+};
+
+const onCoachChange = () => {
+  if (selectedCoachId.value) {
+    const currentCoach = coaches.value.find(c => c.id === Number(selectedCoachId.value));
+    if (currentCoach && currentCoach.actividadNombre) {
+      selectedActividadNombre.value = currentCoach.actividadNombre;
+    }
+  }
+};
+
+const openAssignModal = () => {
+  if (alumno.value) {
+    selectedActividadNombre.value = alumno.value.actividadNombre && alumno.value.actividadNombre !== 'Sin asignación' ? alumno.value.actividadNombre : '';
+    selectedCoachId.value = alumno.value.idCoach || '';
+    showAssignModal.value = true;
+  }
+};
+
+const closeAssignModal = () => {
+  showAssignModal.value = false;
+  selectedActividadNombre.value = '';
+  selectedCoachId.value = '';
+};
+
+const submitAssignCoach = async () => {
+  if (!alumno.value || !selectedCoachId.value) return;
+  isSubmittingAssign.value = true;
+  try {
+    const payload = {
+      dni: alumno.value.dni,
+      nombreCompleto: alumno.value.nombreCompleto || alumno.value.nombre,
+      telefono: alumno.value.telefono,
+      email: alumno.value.email,
+      fechaAlta: alumno.value.fechaAlta,
+      estado: alumno.value.estado,
+      idPlan: alumno.value.idPlan,
+      idCoach: Number(selectedCoachId.value),
+      observacion: alumno.value.observaciones
+    };
+    await socioService.update(alumno.value.id, payload);
+    closeAssignModal();
+    fetchDetalle();
+  } catch (err) {
+    console.error('Error al asignar coach', err);
+  } finally {
+    isSubmittingAssign.value = false;
+  }
+};
+
 const getAvatarUrl = (ruta) => {
   if (!ruta) return null;
   if (ruta.startsWith('http')) return ruta;
   return `http://localhost:5055${ruta}`;
+};
+
+const getActivityStyle = (actNombre) => {
+  if (!actNombre) return { background: 'rgba(156, 163, 175, 0.12)', color: '#6b7280', border: '1px solid rgba(156, 163, 175, 0.25)' };
+  const lower = actNombre.toLowerCase();
+  if (lower.includes('musculaci') || lower.includes('fuerza')) {
+    return { background: 'rgba(16, 185, 129, 0.12)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.25)' };
+  }
+  if (lower.includes('crossfit') || lower.includes('funcional')) {
+    return { background: 'rgba(245, 158, 11, 0.12)', color: '#f59e0b', border: '1px solid rgba(245, 158, 11, 0.25)' };
+  }
+  if (lower.includes('spin') || lower.includes('ciclismo')) {
+    return { background: 'rgba(14, 165, 233, 0.12)', color: '#0ea5e9', border: '1px solid rgba(14, 165, 233, 0.25)' };
+  }
+  if (lower.includes('yoga') || lower.includes('pilates')) {
+    return { background: 'rgba(139, 92, 246, 0.12)', color: '#8b5cf6', border: '1px solid rgba(139, 92, 246, 0.25)' };
+  }
+  return { background: 'rgba(99, 102, 241, 0.12)', color: '#6366f1', border: '1px solid rgba(99, 102, 241, 0.25)' };
 };
 
 const fetchDetalle = async () => {
@@ -49,6 +158,7 @@ const volverListado = () => {
 
 onMounted(() => {
   fetchDetalle();
+  loadCoaches();
 });
 </script>
 
@@ -124,15 +234,30 @@ onMounted(() => {
           <h3>Plan & Entrenador</h3>
           <div class="info-item">
             <span class="label">Plan Actual:</span>
-            <span class="value font-bold text-accent">{{ alumno.planNombre || 'No disponible todavía' }}</span>
+            <span :style="getPlanBadgeStyle(alumno.planNombre)">🏷️ {{ alumno.planNombre || 'No disponible todavía' }}</span>
           </div>
           <div class="info-item">
             <span class="label">Precio Mensual:</span>
-            <span class="value">${{ alumno.planPrecio ? alumno.planPrecio.toLocaleString() : 'No disponible todavía' }}</span>
+            <span class="value">${{ alumno.planPrecio ? alumno.planPrecio.toLocaleString() : '0' }}</span>
+          </div>
+          <div class="info-item">
+            <span class="label">Actividad / Disciplina:</span>
+            <span class="badge-actividad" :style="getActivityStyle(alumno.actividadNombre)">
+              {{ alumno.actividadNombre || 'Sin asignación' }}
+            </span>
           </div>
           <div class="info-item">
             <span class="label">Coach Asignado:</span>
-            <span class="value">{{ alumno.coachNombre || 'No disponible todavía' }}</span>
+            <div class="coach-val-wrapper">
+              <span :style="getCoachBadgeStyle(alumno.coachNombre)">🧢 {{ alumno.coachNombre || 'Sin asignación' }}</span>
+              <button
+                v-if="isAdmin"
+                @click="openAssignModal"
+                class="btn-quick-assign-sm"
+              >
+                ✏️ Cambiar / Asignar Coach & Actividad
+              </button>
+            </div>
           </div>
         </div>
 
@@ -181,13 +306,64 @@ onMounted(() => {
       </div>
 
       <!-- Observaciones -->
-      <div class="detail-card margin-top-20">
+      <div class="detail-card margin-top-24">
         <h3>Observaciones</h3>
         <p class="observaciones-text">{{ alumno.observaciones || 'No disponible todavía' }}</p>
       </div>
 
       <!-- Módulo Fotos de Progreso & Evolución Corporal -->
       <FotosProgresoModule :id-socio="alumno.id" :can-edit="false" />
+    </div>
+
+    <!-- Modal de Asignación Rápida -->
+    <div v-if="showAssignModal" class="modal-backdrop">
+      <div class="modal-panel">
+        <div class="modal-header">
+          <h2>Asignar Entrenador y Actividad</h2>
+          <button @click="closeAssignModal" class="btn-close-modal" title="Cerrar">✕</button>
+        </div>
+
+        <form @submit.prevent="submitAssignCoach" class="modal-form" v-if="alumno">
+          <div class="form-group">
+            <label>Alumno</label>
+            <input type="text" :value="`${alumno.nombreCompleto || alumno.nombre} (DNI: ${alumno.dni})`" disabled class="input-disabled" />
+          </div>
+
+          <div class="form-group">
+            <label for="detailQuickActividad">Actividad / Disciplina</label>
+            <select id="detailQuickActividad" v-model="selectedActividadNombre" @change="onActividadChange">
+              <option value="">-- Todas las actividades --</option>
+              <option v-for="act in actividades" :key="act.id" :value="act.nombre">
+                {{ act.nombre }}
+              </option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="detailQuickCoach">Entrenador Asignado *</label>
+            <select id="detailQuickCoach" v-model="selectedCoachId" @change="onCoachChange" required>
+              <option value="" disabled>-- Seleccione un entrenador --</option>
+              <option
+                v-for="c in filteredCoaches"
+                :key="c.id"
+                :value="c.id"
+                :disabled="c.cupoCompleto && Number(selectedCoachId) !== c.id"
+              >
+                {{ c.nombre }} ({{ c.actividadNombre || 'Sin actividad' }}) - {{ c.alumnosActuales }}/20 {{ c.cupoCompleto ? 'COMPLETO' : 'disponibles' }}
+              </option>
+            </select>
+          </div>
+
+          <div class="form-buttons">
+            <button type="submit" class="btn btn-primary" :disabled="!selectedCoachId || isSubmittingAssign">
+              {{ isSubmittingAssign ? 'Guardando...' : 'Confirmar Asignación' }}
+            </button>
+            <button type="button" @click="closeAssignModal" class="btn btn-secondary">
+              Cancelar
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   </div>
 </template>
@@ -424,6 +600,14 @@ onMounted(() => {
   font-weight: 600;
 }
 
+.badge-actividad {
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  display: inline-block;
+}
+
 .deuda-ok {
   background-color: rgba(16, 185, 129, 0.12);
   color: #10b981;
@@ -449,5 +633,58 @@ onMounted(() => {
 
 .margin-top-20 {
   margin-top: 4px;
+}
+
+.coach-val-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-quick-assign-sm {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(59, 130, 246, 0.15) 100%);
+  color: #10b981;
+  border: 1px dashed rgba(16, 185, 129, 0.5);
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-quick-assign-sm:hover {
+  background: #10b981;
+  color: #ffffff;
+  border-style: solid;
+}
+
+.modal-quick-panel {
+  max-width: 440px !important;
+  text-align: left;
+}
+
+.quick-info-text {
+  font-size: 14px;
+  color: var(--text-h);
+  line-height: 1.5;
+}
+
+.quick-select {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background-color: var(--code-bg);
+  color: var(--text-h);
+  font-size: 14px;
+  outline: none;
+}
+
+.quick-actions-row {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 24px;
 }
 </style>

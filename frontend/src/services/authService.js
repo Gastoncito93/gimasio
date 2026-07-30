@@ -29,8 +29,12 @@ export default {
   },
 
   getUsuario() {
-    const userStr = localStorage.getItem('usuario');
-    return userStr ? JSON.parse(userStr) : null;
+    try {
+      const userStr = localStorage.getItem('usuario');
+      return userStr ? JSON.parse(userStr) : null;
+    } catch {
+      return null;
+    }
   },
 
   setUsuario(usuario) {
@@ -82,5 +86,21 @@ export default {
       }
     }
     return response.data;
+  },
+
+  async cambiarPassword(passwordActual, nuevaPassword) {
+    const response = await api.post('/auth/cambiar-password-primer-ingreso', {
+      passwordActual,
+      nuevaPassword
+    });
+    if (response.data && response.data.token) {
+      localStorage.setItem('token', response.data.token);
+      localStorage.setItem('usuario', JSON.stringify(response.data.usuario));
+    }
+    return response.data;
+  },
+
+  async cambiarPasswordPrimerIngreso(passwordActual, nuevaPassword) {
+    return this.cambiarPassword(passwordActual, nuevaPassword);
   },
 };

@@ -7,6 +7,9 @@ public class Usuario
     public string PasswordHash { get; set; } = string.Empty;
     public string Nombre { get; set; } = string.Empty;
     public string? RutaAvatar { get; set; }
+    public bool DebeCambiarPassword { get; set; } = true;
+    public string? TokenRecuperacion { get; set; }
+    public DateTime? TokenRecuperacionExpiracion { get; set; }
     public DateTime? EliminadoAt { get; set; }
 
     public int IdRol { get; set; }
