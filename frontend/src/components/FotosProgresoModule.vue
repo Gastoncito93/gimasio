@@ -19,7 +19,7 @@ const userRole = computed(() => currentUser.value.rol || currentUser.value.role 
 const isAlumno = computed(() => userRole.value === 'Alumno');
 const isCoachOrAdmin = computed(() => ['Administrador', 'Coach'].includes(userRole.value));
 const canUpload = computed(() => props.canEdit || isAlumno.value);
-const canDelete = computed(() => isCoachOrAdmin.value); // Alumnos cannot delete evolutions
+const canDelete = computed(() => isCoachOrAdmin.value);
 
 const progresos = ref([]);
 const isLoading = ref(false);
@@ -31,14 +31,19 @@ const selectedIds = ref([]);
 const showCompareModal = ref(false);
 const activeAngleTab = ref('frente'); // 'frente', 'perfil', 'espalda'
 
-// Modal upload form
-const showUploadModal = ref(false);
+// Modal 1: Registrar Peso
+const showPesoModal = ref(false);
+const formPesoFecha = ref(new Date().toISOString().substring(0, 10));
+const formPesoKg = ref('');
+const formPesoNotes = ref('');
+
+// Modal 2: Registrar Fotos de Evolución
+const showFotosModal = ref(false);
+const formFotosFecha = ref(new Date().toISOString().substring(0, 10));
+const formFotosObs = ref('');
+
 const isSubmitting = ref(false);
 const uploadErrors = ref([]);
-
-const formFecha = ref(new Date().toISOString().substring(0, 10));
-const formPesoKg = ref('');
-const formObservaciones = ref('');
 
 const fileFrente = ref(null);
 const filePerfil = ref(null);
@@ -79,11 +84,26 @@ watch(() => props.idSocio, () => {
   loadProgresos();
 });
 
-// Graph Computations
+// Graph Computations (all weight history entries sorted chronologically by date and creation ID)
 const weightHistory = computed(() => {
-  return progresos.value
+  return [...progresos.value]
     .filter(p => p.pesoKg != null && p.pesoKg > 0)
-    .sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
+    .sort((a, b) => {
+      const dateDiff = new Date(a.fecha) - new Date(b.fecha);
+      if (dateDiff !== 0) return dateDiff;
+      return a.id - b.id; // Secondary sort: older ID first, newest ID last
+    });
+});
+
+// Photo Gallery (ONLY entries with actual photos, newest first)
+const fotoProgresos = computed(() => {
+  return [...progresos.value]
+    .filter(p => p.rutaFotoFrente || p.rutaFotoPerfil || p.rutaFotoEspalda)
+    .sort((a, b) => {
+      const dateDiff = new Date(b.fecha) - new Date(a.fecha);
+      if (dateDiff !== 0) return dateDiff;
+      return b.id - a.id;
+    });
 });
 
 const chartMetrics = computed(() => {
@@ -189,10 +209,95 @@ const weightDifference = computed(() => {
   return diff.toFixed(1);
 });
 
-const openUploadModal = () => {
-  formFecha.value = new Date().toISOString().substring(0, 10);
+// Modal 3: Registrar Métrica Específica (Crossfit PRs, Spinning Cardio, Yoga Flexibilidad)
+const showMetricModal = ref(false);
+const formMetricFecha = ref(new Date().toISOString().substring(0, 10));
+const formTipoRegistro = ref('CrossfitPR'); // 'CrossfitPR', 'SpinningCardio', 'YogaFlex'
+const formEjercicioNombre = ref('Snatch 1RM');
+const formValorMetrica = ref('');
+const formUnidadMetrica = ref('kg');
+const formMetricNotes = ref('');
+
+const openMetricModal = (tipo) => {
+  formMetricFecha.value = new Date().toISOString().substring(0, 10);
+  formTipoRegistro.value = tipo;
+  if (tipo === 'CrossfitPR') {
+    formEjercicioNombre.value = 'Snatch 1RM';
+    formUnidadMetrica.value = 'kg';
+  } else if (tipo === 'SpinningCardio') {
+    formEjercicioNombre.value = 'Cadencia Promedio';
+    formUnidadMetrica.value = 'RPM';
+  } else if (tipo === 'YogaFlex') {
+    formEjercicioNombre.value = 'Flexibilidad Sit & Reach';
+    formUnidadMetrica.value = 'cm';
+  }
+  formValorMetrica.value = '';
+  formMetricNotes.value = '';
+  uploadErrors.value = [];
+  showMetricModal.value = true;
+};
+
+const submitMetricOnly = async () => {
+  uploadErrors.value = [];
+  if (!formMetricFecha.value) {
+    uploadErrors.value.push('La fecha es obligatoria.');
+    return;
+  }
+  if (!formEjercicioNombre.value.trim()) {
+    uploadErrors.value.push('El nombre de la métrica es obligatorio.');
+    return;
+  }
+  if (!formValorMetrica.value || Number(formValorMetrica.value) <= 0) {
+    uploadErrors.value.push('Ingrese un valor numérico válido.');
+    return;
+  }
+
+  isSubmitting.value = true;
+  try {
+    const formData = new FormData();
+    formData.append('IdSocio', props.idSocio);
+    formData.append('Fecha', formMetricFecha.value);
+    formData.append('TipoRegistro', formTipoRegistro.value);
+    formData.append('EjercicioNombre', formEjercicioNombre.value.trim());
+    formData.append('ValorMetrica', formValorMetrica.value);
+    formData.append('UnidadMetrica', formUnidadMetrica.value.trim());
+    if (formMetricNotes.value.trim()) {
+      formData.append('Observaciones', formMetricNotes.value.trim());
+    }
+
+    await api.post('/progreso', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+
+    showMetricModal.value = false;
+    await loadProgresos();
+  } catch (err) {
+    if (err.response?.data?.errors) {
+      uploadErrors.value = err.response.data.errors;
+    } else {
+      uploadErrors.value = ['Ocurrió un error al guardar la métrica.'];
+    }
+  } finally {
+    isSubmitting.value = false;
+  }
+};
+
+// Discipline specific list projections
+const prRecords = computed(() => {
+  return progresos.value.filter(p => p.tipoRegistro === 'CrossfitPR' || p.ejercicioNombre);
+});
+
+const openPesoModal = () => {
+  formPesoFecha.value = new Date().toISOString().substring(0, 10);
   formPesoKg.value = '';
-  formObservaciones.value = '';
+  formPesoNotes.value = '';
+  uploadErrors.value = [];
+  showPesoModal.value = true;
+};
+
+const openFotosModal = () => {
+  formFotosFecha.value = new Date().toISOString().substring(0, 10);
+  formFotosObs.value = '';
   fileFrente.value = null;
   filePerfil.value = null;
   fileEspalda.value = null;
@@ -200,7 +305,7 @@ const openUploadModal = () => {
   previewPerfil.value = null;
   previewEspalda.value = null;
   uploadErrors.value = [];
-  showUploadModal.value = true;
+  showFotosModal.value = true;
 };
 
 const onFileChange = (e, type) => {
@@ -223,14 +328,14 @@ const onFileChange = (e, type) => {
   reader.readAsDataURL(file);
 };
 
-const submitProgreso = async () => {
+const submitPesoOnly = async () => {
   uploadErrors.value = [];
-  if (!formFecha.value) {
-    uploadErrors.value.push('La fecha del registro es obligatoria.');
+  if (!formPesoFecha.value) {
+    uploadErrors.value.push('La fecha es obligatoria.');
     return;
   }
-  if (!fileFrente.value && !filePerfil.value && !fileEspalda.value && !formPesoKg.value) {
-    uploadErrors.value.push('Debes subir al menos 1 foto de evolución o registrar el peso en kg.');
+  if (!formPesoKg.value || Number(formPesoKg.value) <= 0) {
+    uploadErrors.value.push('Ingrese un peso corporal válido mayor a 0 kg.');
     return;
   }
 
@@ -238,9 +343,48 @@ const submitProgreso = async () => {
   try {
     const formData = new FormData();
     formData.append('IdSocio', props.idSocio);
-    formData.append('Fecha', formFecha.value);
-    if (formPesoKg.value) formData.append('PesoKg', formPesoKg.value);
-    if (formObservaciones.value) formData.append('Observaciones', formObservaciones.value);
+    formData.append('Fecha', formPesoFecha.value);
+    formData.append('PesoKg', formPesoKg.value);
+    if (formPesoNotes.value.trim()) {
+      formData.append('Observaciones', formPesoNotes.value.trim());
+    }
+
+    await api.post('/progreso', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+
+    showPesoModal.value = false;
+    await loadProgresos();
+  } catch (err) {
+    if (err.response?.data?.errors) {
+      uploadErrors.value = err.response.data.errors;
+    } else {
+      uploadErrors.value = ['Ocurrió un error al guardar el registro de peso.'];
+    }
+  } finally {
+    isSubmitting.value = false;
+  }
+};
+
+const submitFotosOnly = async () => {
+  uploadErrors.value = [];
+  if (!formFotosFecha.value) {
+    uploadErrors.value.push('La fecha es obligatoria.');
+    return;
+  }
+  if (!fileFrente.value && !filePerfil.value && !fileEspalda.value) {
+    uploadErrors.value.push('Debe seleccionar al menos 1 foto de evolución.');
+    return;
+  }
+
+  isSubmitting.value = true;
+  try {
+    const formData = new FormData();
+    formData.append('IdSocio', props.idSocio);
+    formData.append('Fecha', formFotosFecha.value);
+    if (formFotosObs.value.trim()) {
+      formData.append('Observaciones', formFotosObs.value.trim());
+    }
 
     if (fileFrente.value) formData.append('FotoFrente', fileFrente.value);
     if (filePerfil.value) formData.append('FotoPerfil', filePerfil.value);
@@ -250,13 +394,13 @@ const submitProgreso = async () => {
       headers: { 'Content-Type': 'multipart/form-data' }
     });
 
-    showUploadModal.value = false;
-    loadProgresos();
+    showFotosModal.value = false;
+    await loadProgresos();
   } catch (err) {
     if (err.response?.data?.errors) {
       uploadErrors.value = err.response.data.errors;
     } else {
-      uploadErrors.value = ['Ocurrió un error al subir el registro de progreso.'];
+      uploadErrors.value = ['Ocurrió un error al guardar la evolución de fotos.'];
     }
   } finally {
     isSubmitting.value = false;
@@ -301,10 +445,46 @@ onMounted(() => {
         <button
           v-if="canUpload"
           type="button"
-          class="btn-primary"
-          @click="openUploadModal"
+          class="btn-secondary"
+          @click="openPesoModal"
         >
-          + Registrar Peso / Evolución
+          + Registrar Peso
+        </button>
+
+        <button
+          v-if="canUpload"
+          type="button"
+          class="btn-secondary"
+          @click="openMetricModal('CrossfitPR')"
+        >
+          + Registrar Récord (PR)
+        </button>
+
+        <button
+          v-if="canUpload"
+          type="button"
+          class="btn-secondary"
+          @click="openMetricModal('SpinningCardio')"
+        >
+          + Registrar Cardio
+        </button>
+
+        <button
+          v-if="canUpload"
+          type="button"
+          class="btn-secondary"
+          @click="openMetricModal('YogaFlex')"
+        >
+          + Registrar Movilidad
+        </button>
+
+        <button
+          v-if="canUpload"
+          type="button"
+          class="btn-primary"
+          @click="openFotosModal"
+        >
+          + Registrar Fotos de Evolución
         </button>
       </div>
     </div>
@@ -323,15 +503,15 @@ onMounted(() => {
 
         <div class="chart-stats-summary">
           <div class="kpi-box">
-            <span class="kpi-label">Peso Inicial</span>
+            <span class="kpi-label">Peso Inicial:</span>
             <span class="kpi-val">{{ chartMetrics.inicial }} kg</span>
           </div>
           <div class="kpi-box">
-            <span class="kpi-label">Peso Actual</span>
+            <span class="kpi-label">Peso Actual:</span>
             <span class="kpi-val font-bold">{{ chartMetrics.actual }} kg</span>
           </div>
           <div class="kpi-box">
-            <span class="kpi-label">Variación Total</span>
+            <span class="kpi-label">Variación Total:</span>
             <span :class="['kpi-val', chartMetrics.diffNum <= 0 ? 'text-green' : 'text-amber']">
               {{ chartMetrics.diffStr }} kg
             </span>
@@ -366,29 +546,24 @@ onMounted(() => {
             <circle :cx="pt.x" :cy="pt.y" r="14" fill="transparent" class="point-hitbox" />
 
             <!-- Point Label Text -->
-            <text :x="pt.x" :y="pt.y - 12" text-anchor="middle" class="point-text">{{ pt.peso }}kg</text>
+            <text :x="pt.x" :y="pt.y - 12" text-anchor="middle" class="point-text">{{ pt.peso }} kg</text>
           </g>
 
           <!-- Interactive Hover Tooltip -->
           <g v-if="hoveredPoint" class="tooltip-g">
             <rect :x="hoveredPoint.x - 55" :y="hoveredPoint.y - 45" width="110" height="28" rx="6" fill="var(--code-bg)" stroke="var(--accent)" stroke-width="1" />
             <text :x="hoveredPoint.x" :y="hoveredPoint.y - 27" text-anchor="middle" class="tooltip-text">
-              {{ hoveredPoint.fecha }}: {{ hoveredPoint.peso }}kg
+              {{ hoveredPoint.fecha }}: {{ hoveredPoint.peso }} kg
             </text>
           </g>
         </svg>
       </div>
     </div>
 
-    <div v-else-if="progresos.length === 0" class="empty-card">
-      <p class="empty-title">Sin registros de evolución aún</p>
-      <p class="empty-desc">Ingresa el peso corporal y sube fotos de frente, perfil o espalda para visualizar el progreso.</p>
-    </div>
-
-    <!-- Lista / Galería de Registros -->
-    <div v-if="progresos.length > 0" class="cards-grid">
+    <!-- Lista / Galería de Fotos de Evolución (Solo items con foto) -->
+    <div v-if="fotoProgresos.length > 0" class="cards-grid">
       <div
-        v-for="item in progresos"
+        v-for="item in fotoProgresos"
         :key="item.id"
         class="progreso-card"
         :class="{ 'selected-card': selectedIds.includes(item.id) }"
@@ -401,10 +576,10 @@ onMounted(() => {
               @change="toggleSelect(item.id)"
             />
             <span class="checkmark"></span>
-            <span class="fecha-label">{{ formatDate(item.fecha) }}</span>
+            <span class="fecha-label">Fecha: {{ formatDate(item.fecha) }}</span>
           </label>
 
-          <span v-if="item.pesoKg" class="peso-badge">{{ item.pesoKg }} kg</span>
+          <span v-if="item.pesoKg" class="peso-badge">Peso: {{ item.pesoKg }} kg</span>
         </div>
 
         <!-- Miniaturas de fotos -->
@@ -421,9 +596,6 @@ onMounted(() => {
             <img :src="getImageUrl(item.rutaFotoEspalda)" alt="Espalda" />
             <span class="photo-tag">Espalda</span>
           </div>
-          <div class="no-photo-box" v-if="!item.rutaFotoFrente && !item.rutaFotoPerfil && !item.rutaFotoEspalda">
-            <span>Sin fotos cargadas</span>
-          </div>
         </div>
 
         <p v-if="item.observaciones" class="obs-text">"{{ item.observaciones }}"</p>
@@ -434,10 +606,35 @@ onMounted(() => {
       </div>
     </div>
 
-    <!-- Modal Nuevo Registro -->
-    <div v-if="showUploadModal" class="modal-backdrop" @click.self="showUploadModal = false">
+    <!-- Sección Récords Personales & Métricas Especiales (Crossfit / Spinning / Yoga) -->
+    <div v-if="prRecords.length > 0" class="discipline-metrics-section">
+      <h4 class="section-subtitle">Historial de Récords & Métricas de Disciplina</h4>
+
+      <div class="cards-grid">
+        <div v-for="item in prRecords" :key="item.id" class="progreso-card metric-card-single">
+          <div class="card-header">
+            <span class="fecha-label">Fecha: {{ formatDate(item.fecha) }}</span>
+            <span class="badge-actividad">{{ item.ejercicioNombre }}</span>
+          </div>
+
+          <div class="metric-display-box">
+            <span class="metric-val-large">{{ item.valorMetrica }}</span>
+            <span class="metric-unit-badge">{{ item.unidadMetrica }}</span>
+          </div>
+
+          <p v-if="item.observaciones" class="obs-text">"{{ item.observaciones }}"</p>
+
+          <div class="card-footer" v-if="canDelete">
+            <button type="button" class="btn-delete" @click="deleteProgreso(item)">Eliminar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL 1: REGISTRAR PESO -->
+    <div v-if="showPesoModal" class="modal-backdrop" @click.self="showPesoModal = false">
       <div class="modal-card">
-        <h3>Nuevo Registro de Evolución</h3>
+        <h3>Registrar Peso Corporal</h3>
 
         <div v-if="uploadErrors.length > 0" class="alert alert-error">
           <ul>
@@ -445,21 +642,52 @@ onMounted(() => {
           </ul>
         </div>
 
-        <form @submit.prevent="submitProgreso">
-          <div class="form-row">
-            <div class="form-group flex-1">
-              <label>Fecha de Registro *</label>
-              <input type="date" v-model="formFecha" required />
-            </div>
-            <div class="form-group flex-1">
-              <label>Peso Corporal (kg) *</label>
-              <input type="number" step="0.1" v-model="formPesoKg" placeholder="Ej. 78.5" />
-            </div>
+        <form @submit.prevent="submitPesoOnly">
+          <div class="form-group">
+            <label>Fecha de Registro *</label>
+            <input type="date" v-model="formPesoFecha" required />
           </div>
 
           <div class="form-group">
-            <label>Observaciones / Notas de Progreso</label>
-            <input type="text" v-model="formObservaciones" placeholder="Ej. Definición abdominal evidente, mejor postura." />
+            <label>Peso Corporal (kg) *</label>
+            <input type="number" step="0.1" v-model="formPesoKg" required placeholder="Ej. 78.5" />
+          </div>
+
+          <div class="form-group">
+            <label>Nota / Observación</label>
+            <input type="text" v-model="formPesoNotes" placeholder="Ej. En ayunas, antes de entrenar." />
+          </div>
+
+          <div class="modal-actions">
+            <button type="button" class="btn-secondary" @click="showPesoModal = false">Cancelar</button>
+            <button type="submit" class="btn-primary" :disabled="isSubmitting">
+              {{ isSubmitting ? 'Guardando...' : 'Guardar Peso' }}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- MODAL 2: REGISTRAR FOTOS DE EVOLUCIÓN -->
+    <div v-if="showFotosModal" class="modal-backdrop" @click.self="showFotosModal = false">
+      <div class="modal-card">
+        <h3>Registrar Fotos de Evolución</h3>
+
+        <div v-if="uploadErrors.length > 0" class="alert alert-error">
+          <ul>
+            <li v-for="(err, idx) in uploadErrors" :key="idx">{{ err }}</li>
+          </ul>
+        </div>
+
+        <form @submit.prevent="submitFotosOnly">
+          <div class="form-group">
+            <label>Fecha de Registro *</label>
+            <input type="date" v-model="formFotosFecha" required />
+          </div>
+
+          <div class="form-group">
+            <label>Observaciones / Notas de Evolución</label>
+            <input type="text" v-model="formFotosObs" placeholder="Ej. Definición abdominal evidente, mejor postura." />
           </div>
 
           <div class="photos-upload-grid">
@@ -495,9 +723,65 @@ onMounted(() => {
           </div>
 
           <div class="modal-actions">
-            <button type="button" class="btn-secondary" @click="showUploadModal = false">Cancelar</button>
+            <button type="button" class="btn-secondary" @click="showFotosModal = false">Cancelar</button>
             <button type="submit" class="btn-primary" :disabled="isSubmitting">
-              {{ isSubmitting ? 'Guardando...' : 'Guardar Evolución' }}
+              {{ isSubmitting ? 'Guardando...' : 'Guardar Fotos' }}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- MODAL 3: REGISTRAR MÉTRICA DE DISCIPLINA -->
+    <div v-if="showMetricModal" class="modal-backdrop" @click.self="showMetricModal = false">
+      <div class="modal-card">
+        <h3>
+          {{ formTipoRegistro === 'CrossfitPR' ? 'Registrar Récord Personal (PR)' : formTipoRegistro === 'SpinningCardio' ? 'Registrar Sesión Cardio' : 'Registrar Control de Movilidad & Bienestar' }}
+        </h3>
+
+        <div v-if="uploadErrors.length > 0" class="alert alert-error">
+          <ul>
+            <li v-for="(err, idx) in uploadErrors" :key="idx">{{ err }}</li>
+          </ul>
+        </div>
+
+        <form @submit.prevent="submitMetricOnly">
+          <div class="form-group">
+            <label>Fecha de Registro *</label>
+            <input type="date" v-model="formMetricFecha" required />
+          </div>
+
+          <div class="form-group">
+            <label>Métrica / Ejercicio *</label>
+            <input
+              type="text"
+              v-model="formEjercicioNombre"
+              required
+              :placeholder="formTipoRegistro === 'CrossfitPR' ? 'Ej. Snatch 1RM, Clean & Jerk, Back Squat, Fran WOD' : formTipoRegistro === 'SpinningCardio' ? 'Ej. Cadencia Promedio, Distancia km, Potencia Watts' : 'Ej. Flexibilidad Sit & Reach, Nivel de Estrés'"
+            />
+          </div>
+
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label>Valor Numérico *</label>
+              <input type="number" step="0.1" v-model="formValorMetrica" required placeholder="Ej. 95.0" />
+            </div>
+
+            <div class="form-group flex-1">
+              <label>Unidad *</label>
+              <input type="text" v-model="formUnidadMetrica" required placeholder="Ej. kg, RPM, km, cm, pts" />
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Observaciones / Notas</label>
+            <input type="text" v-model="formMetricNotes" placeholder="Ej. Buena técnica, sin molestias." />
+          </div>
+
+          <div class="modal-actions">
+            <button type="button" class="btn-secondary" @click="showMetricModal = false">Cancelar</button>
+            <button type="submit" class="btn-primary" :disabled="isSubmitting">
+              {{ isSubmitting ? 'Guardando...' : 'Guardar Métrica' }}
             </button>
           </div>
         </form>
@@ -726,7 +1010,7 @@ onMounted(() => {
 
 .svg-chart-wrapper {
   width: 100%;
-  overflow-x: auto;
+  overflow-x: hidden;
 }
 
 .weight-svg {
@@ -1143,6 +1427,49 @@ onMounted(() => {
   border-radius: 8px;
   font-size: 13px;
   margin-bottom: 16px;
+}
+
+.discipline-metrics-section {
+  margin-top: 24px;
+  margin-bottom: 24px;
+}
+
+.section-subtitle {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-h);
+  margin-bottom: 14px;
+}
+
+.metric-display-box {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 8px 0;
+}
+
+.metric-val-large {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.metric-unit-badge {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  opacity: 0.85;
+}
+
+.badge-actividad {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  color: #6366f1;
+  background-color: rgba(99, 102, 241, 0.12);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  padding: 2px 8px;
+  border-radius: 10px;
 }
 .alert-error ul { margin: 0; padding-left: 18px; }
 </style>

@@ -50,7 +50,8 @@ public class SocioService : ISocioService
 
         IQueryable<Socio> query = _context.Socios
             .Include(s => s.Plan)
-            .Include(s => s.Coach)
+            .Include(s => s.Coach).ThenInclude(c => c!.Actividad)
+            .Include(s => s.Usuario)
             .AsNoTracking();
 
         if (!string.IsNullOrWhiteSpace(search))
@@ -93,6 +94,8 @@ public class SocioService : ISocioService
                 PlanNombre = s.Plan.Nombre,
                 IdCoach = s.IdCoach,
                 CoachNombre = s.Coach != null ? s.Coach.Nombre : null,
+                ActividadNombre = s.Coach != null && s.Coach.Actividad != null ? s.Coach.Actividad.Nombre : "Musculación",
+                Avatar = s.Usuario != null ? s.Usuario.RutaAvatar : null,
                 Observacion = s.Observacion
             })
             .ToListAsync();
@@ -114,7 +117,8 @@ public class SocioService : ISocioService
     {
         var socio = await _context.Socios
             .Include(s => s.Plan)
-            .Include(s => s.Coach)
+            .Include(s => s.Coach).ThenInclude(c => c!.Actividad)
+            .Include(s => s.Usuario)
             .AsNoTracking()
             .FirstOrDefaultAsync(s => s.Id == id);
 
@@ -133,6 +137,8 @@ public class SocioService : ISocioService
             PlanNombre = socio.Plan.Nombre,
             IdCoach = socio.IdCoach,
             CoachNombre = socio.Coach != null ? socio.Coach.Nombre : null,
+            ActividadNombre = socio.Coach != null && socio.Coach.Actividad != null ? socio.Coach.Actividad.Nombre : "Musculación",
+            Avatar = socio.Usuario != null ? socio.Usuario.RutaAvatar : null,
             Observacion = socio.Observacion
         };
     }
@@ -141,7 +147,8 @@ public class SocioService : ISocioService
     {
         var socio = await _context.Socios
             .Include(s => s.Plan)
-            .Include(s => s.Coach)
+            .Include(s => s.Coach).ThenInclude(c => c!.Actividad)
+            .Include(s => s.Usuario)
             .AsNoTracking()
             .FirstOrDefaultAsync(s => s.IdUsuario == userId);
 
@@ -160,6 +167,8 @@ public class SocioService : ISocioService
             PlanNombre = socio.Plan != null ? socio.Plan.Nombre : string.Empty,
             IdCoach = socio.IdCoach,
             CoachNombre = socio.Coach != null ? socio.Coach.Nombre : null,
+            ActividadNombre = socio.Coach != null && socio.Coach.Actividad != null ? socio.Coach.Actividad.Nombre : "Musculación",
+            Avatar = socio.Usuario != null ? socio.Usuario.RutaAvatar : null,
             Observacion = socio.Observacion
         };
     }
@@ -185,7 +194,9 @@ public class SocioService : ISocioService
                 Dni = s.Dni,
                 NombreCompleto = s.NombreCompleto,
                 Estado = s.Estado,
-                PlanNombre = s.Plan.Nombre
+                IdPlan = s.IdPlan,
+                PlanNombre = s.Plan.Nombre,
+                PlanPrecio = s.Plan.PrecioMensual
             })
             .ToListAsync();
     }

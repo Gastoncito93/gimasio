@@ -20,7 +20,7 @@ public class CoachService : ICoachService
         IQueryable<Socio> query = _context.Socios
             .Include(s => s.Plan)
             .Include(s => s.Cuotas)
-            .Include(s => s.Coach)
+            .Include(s => s.Coach).ThenInclude(c => c!.Actividad)
             .Include(s => s.Usuario)
             .Include(s => s.Progresos)
             .AsSplitQuery()
@@ -63,6 +63,7 @@ public class CoachService : ICoachService
                 UltimaSesion = "No disponible todavía",
                 Observaciones = s.Observacion,
                 CoachNombre = s.Coach?.Nombre ?? "Sin asignación",
+                ActividadNombre = s.Coach?.Actividad?.Nombre ?? "Musculación",
                 CantidadEvoluciones = s.Progresos.Count
             };
         }).ToList();
@@ -73,7 +74,7 @@ public class CoachService : ICoachService
         var socio = await _context.Socios
             .Include(s => s.Plan)
             .Include(s => s.Cuotas)
-            .Include(s => s.Coach)
+            .Include(s => s.Coach).ThenInclude(c => c!.Actividad)
             .Include(s => s.Usuario)
             .Include(s => s.Progresos)
             .AsSplitQuery()
@@ -115,6 +116,7 @@ public class CoachService : ICoachService
 
             IdCoach = socio.IdCoach,
             CoachNombre = socio.Coach?.Nombre ?? "Sin asignación",
+            ActividadNombre = socio.Coach?.Actividad?.Nombre ?? "Musculación",
 
             DeudaEstado = deudaEstado,
             CuotasPendientesCount = cuotasPendientes.Count,

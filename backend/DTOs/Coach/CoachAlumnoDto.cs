@@ -17,6 +17,7 @@ public class CoachAlumnoDto
     public string UltimaSesion { get; set; } = "No disponible todavía";
     public string? Observaciones { get; set; }
     public string CoachNombre { get; set; } = "Sin asignación";
+    public string ActividadNombre { get; set; } = "Musculación";
     public int CantidadEvoluciones { get; set; }
 }
 
@@ -39,9 +40,10 @@ public class CoachAlumnoDetalleDto
     public string PlanNombre { get; set; } = string.Empty;
     public decimal PlanPrecio { get; set; }
 
-    // Coach
+    // Coach & Actividad
     public int? IdCoach { get; set; }
     public string CoachNombre { get; set; } = "Sin asignación";
+    public string ActividadNombre { get; set; } = "Musculación";
 
     // Estado de Cuenta / Deuda
     public string DeudaEstado { get; set; } = "Al día";

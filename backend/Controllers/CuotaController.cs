@@ -82,7 +82,7 @@ public class CuotaController : ControllerBase
         return Ok(data);
     }
 
-    [Authorize(Roles = "Administrador")]
+    [Authorize(Roles = "Administrador,Empleado")]
     [HttpPatch("{id:int}/anular")]
     public async Task<IActionResult> Anular(int id)
     {

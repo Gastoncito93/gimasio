@@ -258,7 +258,15 @@ onMounted(() => {
             </thead>
             <tbody>
               <tr v-for="alumno in misAlumnos" :key="alumno.id">
-                <td class="font-bold">{{ alumno.nombreCompleto || alumno.nombre }}</td>
+                <td class="user-cell">
+                  <div class="table-avatar">
+                    <img v-if="alumno.avatar" :src="getAvatarUrl(alumno.avatar)" alt="Avatar" class="avatar-img-sm" />
+                    <div v-else class="avatar-initial-sm">
+                      {{ (alumno.nombreCompleto || alumno.nombre || 'A').charAt(0).toUpperCase() }}
+                    </div>
+                  </div>
+                  <span class="font-bold">{{ alumno.nombreCompleto || alumno.nombre }}</span>
+                </td>
                 <td>{{ alumno.dni || '-' }}</td>
                 <td>{{ alumno.planNombre }}</td>
                 <td>
@@ -295,14 +303,13 @@ onMounted(() => {
           <h1>Mi Panel de Alumno</h1>
           <p class="subtitle">Bienvenido a tu espacio personal de entrenamiento</p>
         </div>
-        <span class="badge-role-header badge-green">🎓 Alumno</span>
+        <span class="badge-role-header badge-green">Alumno</span>
       </header>
 
       <div class="alumno-dashboard-grid">
         <!-- Mi Plan y Estado de Cuenta -->
         <div class="content-card">
           <div class="card-header-icon">
-            <span class="card-icon">📋</span>
             <h3>Mi Plan y Membresía</h3>
           </div>
           <div class="info-group">
@@ -319,21 +326,8 @@ onMounted(() => {
           </div>
           <div class="info-group">
             <span class="info-label">Próximo Vencimiento:</span>
-            <span class="info-value">📅 {{ miInformacion.proximoVencimiento }}</span>
+            <span class="info-value">{{ miInformacion.proximoVencimiento }}</span>
           </div>
-        </div>
-
-        <!-- Mi Progreso -->
-        <div class="content-card">
-          <div class="card-header-icon">
-            <span class="card-icon">📈</span>
-            <h3>Mi Progreso este Mes</h3>
-          </div>
-          <p class="text-subtle">{{ miInformacion.progresoMes }}</p>
-          <div class="large-progress-container">
-            <div class="large-progress-fill" :style="{ width: miInformacion.porcentajeProgreso + '%' }"></div>
-          </div>
-          <span class="large-progress-percentage">{{ miInformacion.porcentajeProgreso }}% Cumplido</span>
         </div>
       </div>
 
@@ -422,7 +416,8 @@ onMounted(() => {
 
 <style scoped>
 .dashboard-container {
-  max-width: 1120px;
+  width: 100%;
+  max-width: 1400px;
   margin: 0 auto;
   padding: 28px 24px;
   text-align: left;
@@ -639,8 +634,32 @@ onMounted(() => {
   margin-bottom: 24px;
 }
 
+.info-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 0;
+  border-bottom: 1px dashed var(--border);
+  font-size: 14px;
+}
+
+.info-group:last-child {
+  border-bottom: none;
+}
+
+.info-label {
+  color: var(--text);
+  opacity: 0.85;
+}
+
+.info-value {
+  color: var(--text-h);
+  font-weight: 600;
+}
+
 .table-responsive {
-  overflow-x: auto;
+  width: 100%;
+  overflow-x: hidden;
 }
 
 .data-table {
@@ -653,6 +672,8 @@ onMounted(() => {
   padding: 12px 14px;
   text-align: left;
   border-bottom: 1px solid var(--border);
+  white-space: normal;
+  word-break: break-word;
 }
 
 .data-table th {

@@ -15,6 +15,24 @@ const getAvatarUrl = (ruta) => {
   return `http://localhost:5055${ruta}`;
 };
 
+const getActivityStyle = (actNombre) => {
+  if (!actNombre) return { background: 'rgba(156, 163, 175, 0.12)', color: '#6b7280', border: '1px solid rgba(156, 163, 175, 0.25)' };
+  const lower = actNombre.toLowerCase();
+  if (lower.includes('musculaci') || lower.includes('fuerza')) {
+    return { background: 'rgba(16, 185, 129, 0.12)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.25)' };
+  }
+  if (lower.includes('crossfit') || lower.includes('funcional')) {
+    return { background: 'rgba(245, 158, 11, 0.12)', color: '#f59e0b', border: '1px solid rgba(245, 158, 11, 0.25)' };
+  }
+  if (lower.includes('spin') || lower.includes('ciclismo')) {
+    return { background: 'rgba(14, 165, 233, 0.12)', color: '#0ea5e9', border: '1px solid rgba(14, 165, 233, 0.25)' };
+  }
+  if (lower.includes('yoga') || lower.includes('pilates')) {
+    return { background: 'rgba(139, 92, 246, 0.12)', color: '#8b5cf6', border: '1px solid rgba(139, 92, 246, 0.25)' };
+  }
+  return { background: 'rgba(99, 102, 241, 0.12)', color: '#6366f1', border: '1px solid rgba(99, 102, 241, 0.25)' };
+};
+
 const fetchAlumnos = async () => {
   isLoading.value = true;
   errorMessage.value = '';
@@ -126,6 +144,16 @@ onMounted(() => {
           </div>
 
           <div class="info-row">
+            <span class="info-label">Actividad:</span>
+            <span class="badge-actividad" :style="getActivityStyle(alumno.actividadNombre)">{{ alumno.actividadNombre || 'Musculación' }}</span>
+          </div>
+
+          <div class="info-row">
+            <span class="info-label">Coach Asignado:</span>
+            <span class="info-val font-bold">{{ alumno.coachNombre || 'Sin asignación' }}</span>
+          </div>
+
+          <div class="info-row">
             <span class="info-label">Evoluciones cargadas:</span>
             <span class="info-val font-bold text-accent">{{ alumno.cantidadEvoluciones || 0 }}</span>
           </div>
@@ -138,11 +166,6 @@ onMounted(() => {
           <div class="info-row">
             <span class="info-label">Última Sesión:</span>
             <span class="info-val subtle">{{ alumno.ultimaSesion }}</span>
-          </div>
-
-          <div class="info-row" v-if="alumno.coachNombre">
-            <span class="info-label">Coach Asignado:</span>
-            <span class="info-val">{{ alumno.coachNombre }}</span>
           </div>
         </div>
 
@@ -158,7 +181,8 @@ onMounted(() => {
 
 <style scoped>
 .coach-alumnos-page {
-  max-width: 1120px;
+  width: 100%;
+  max-width: 1400px;
   margin: 0 auto;
   padding: 28px 24px;
   text-align: left;
@@ -354,6 +378,17 @@ onMounted(() => {
   padding: 2px 8px;
   border-radius: 10px;
   width: fit-content;
+}
+
+.badge-actividad {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  color: #6366f1;
+  background-color: rgba(99, 102, 241, 0.12);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  padding: 2px 8px;
+  border-radius: 10px;
 }
 
 .card-body {

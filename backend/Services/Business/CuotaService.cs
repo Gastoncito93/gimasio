@@ -25,7 +25,10 @@ public class CuotaService : ICuotaService
         page = page < 1 ? 1 : page;
         pageSize = pageSize < 1 ? 10 : pageSize;
 
-        IQueryable<Cuota> query = _context.Cuotas.Include(c => c.Socio).AsNoTracking();
+        IQueryable<Cuota> query = _context.Cuotas
+            .Include(c => c.Socio)
+            .ThenInclude(s => s.Usuario)
+            .AsNoTracking();
 
         if (!string.IsNullOrWhiteSpace(search))
         {
@@ -58,6 +61,7 @@ public class CuotaService : ICuotaService
                 IdSocio = c.IdSocio,
                 SocioNombreCompleto = c.Socio.NombreCompleto,
                 SocioDni = c.Socio.Dni,
+                SocioAvatar = c.Socio.Usuario != null ? c.Socio.Usuario.RutaAvatar : null,
                 Periodo = c.Periodo,
                 Monto = c.Monto,
                 FechaVencimiento = c.FechaVencimiento,
@@ -122,12 +126,32 @@ public class CuotaService : ICuotaService
             return (false, null, errors);
         }
 
-        // Verify unique Socio + Periodo constraint
-        bool exists = await _context.Cuotas.AnyAsync(c => c.IdSocio == dto.IdSocio && c.Periodo == dto.Periodo);
-        if (exists)
+        // Calculate total already paid by this socio for this period
+        var paidCuotas = await _context.Cuotas
+            .Where(c => c.IdSocio == dto.IdSocio && c.Periodo == dto.Periodo && c.Estado == "Pagado")
+            .ToListAsync();
+
+        decimal totalPagado = paidCuotas.Sum(c => c.Monto);
+
+        // Fetch socio's plan price to compare
+        var plan = await _context.Planes.FirstOrDefaultAsync(p => p.Id == socio.IdPlan);
+        decimal planPrecio = plan?.PrecioMensual ?? 0;
+
+        if (planPrecio > 0 && totalPagado >= planPrecio)
         {
-            errors.Add("Ya existe una cuota registrada para este socio en el período seleccionado.");
+            errors.Add($"El socio {socio.NombreCompleto} ya cubrió el 100% de la cuota mensual de su plan (${totalPagado:N2}) para el período seleccionado.");
             return (false, null, errors);
+        }
+
+        // Clean up any non-paid (Pendiente or Anulado) cuotas for this socio in this period so the new cuota replaces it seamlessly
+        var nonPaidCuotas = await _context.Cuotas
+            .Where(c => c.IdSocio == dto.IdSocio && c.Periodo == dto.Periodo && c.Estado != "Pagado")
+            .ToListAsync();
+
+        if (nonPaidCuotas.Any())
+        {
+            _context.Cuotas.RemoveRange(nonPaidCuotas);
+            await _context.SaveChangesAsync();
         }
 
         var cuota = new Cuota
@@ -140,8 +164,16 @@ public class CuotaService : ICuotaService
             Observacion = string.IsNullOrWhiteSpace(dto.Observacion) ? null : dto.Observacion.Trim()
         };
 
-        _context.Cuotas.Add(cuota);
-        await _context.SaveChangesAsync();
+        try
+        {
+            _context.Cuotas.Add(cuota);
+            await _context.SaveChangesAsync();
+        }
+        catch (Exception ex)
+        {
+            errors.Add("Error en la base de datos al guardar la cuota: " + (ex.InnerException?.Message ?? ex.Message));
+            return (false, null, errors);
+        }
 
         var response = await GetByIdAsync(cuota.Id);
         return (true, response, errors);

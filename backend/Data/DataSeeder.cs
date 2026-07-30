@@ -7,6 +7,20 @@ public static class DataSeeder
 {
     public static async Task SeedDataAsync(AppDbContext context)
     {
+        try
+        {
+            await context.Database.ExecuteSqlRawAsync("ALTER TABLE Cuotas DROP INDEX IX_Cuotas_IdSocio_Periodo;");
+        }
+        catch
+        {
+            // Index already dropped or not present
+        }
+
+        try { await context.Database.ExecuteSqlRawAsync("ALTER TABLE SociosProgresos ADD COLUMN TipoRegistro VARCHAR(255) NULL;"); } catch { }
+        try { await context.Database.ExecuteSqlRawAsync("ALTER TABLE SociosProgresos ADD COLUMN EjercicioNombre VARCHAR(255) NULL;"); } catch { }
+        try { await context.Database.ExecuteSqlRawAsync("ALTER TABLE SociosProgresos ADD COLUMN ValorMetrica DECIMAL(18,2) NULL;"); } catch { }
+        try { await context.Database.ExecuteSqlRawAsync("ALTER TABLE SociosProgresos ADD COLUMN UnidadMetrica VARCHAR(255) NULL;"); } catch { }
+
         // 1. Seed / Normalizar Roles
         var rolAdmin = await context.Roles.FirstOrDefaultAsync(r => r.Id == 1);
         if (rolAdmin == null)

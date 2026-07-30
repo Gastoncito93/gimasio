@@ -172,7 +172,7 @@ onMounted(() => {
 
         <div class="file-upload-section">
           <label for="avatar-input" class="btn-file-select">
-            📁 {{ selectedFile ? 'Cambiar imagen seleccionada' : 'Seleccionar imagen' }}
+            {{ selectedFile ? 'Cambiar imagen seleccionada' : 'Seleccionar imagen' }}
           </label>
           <input
             id="avatar-input"
@@ -255,7 +255,8 @@ onMounted(() => {
 
 <style scoped>
 .profile-container {
-  max-width: 1120px;
+  width: 100%;
+  max-width: 1400px;
   margin: 0 auto;
   padding: 28px 24px;
   text-align: left;

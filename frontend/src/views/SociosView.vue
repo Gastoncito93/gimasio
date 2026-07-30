@@ -5,6 +5,12 @@ import planService from '../services/planService';
 import authService from '../services/authService';
 import api from '../services/api';
 
+const getAvatarUrl = (ruta) => {
+  if (!ruta) return null;
+  if (ruta.startsWith('http')) return ruta;
+  return `http://localhost:5055${ruta}`;
+};
+
 // Auth State
 const isAdmin = computed(() => authService.hasRole('Administrador'));
 
@@ -42,6 +48,24 @@ const coaches = ref([]);
 const cleanCoachName = (name) => {
   if (!name) return '';
   return name.replace(/^Coach\s+/i, '');
+};
+
+const getActivityStyle = (actNombre) => {
+  if (!actNombre) return { background: 'rgba(156, 163, 175, 0.12)', color: '#6b7280', border: '1px solid rgba(156, 163, 175, 0.25)' };
+  const lower = actNombre.toLowerCase();
+  if (lower.includes('musculaci') || lower.includes('fuerza')) {
+    return { background: 'rgba(16, 185, 129, 0.12)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.25)' };
+  }
+  if (lower.includes('crossfit') || lower.includes('funcional')) {
+    return { background: 'rgba(245, 158, 11, 0.12)', color: '#f59e0b', border: '1px solid rgba(245, 158, 11, 0.25)' };
+  }
+  if (lower.includes('spin') || lower.includes('ciclismo')) {
+    return { background: 'rgba(14, 165, 233, 0.12)', color: '#0ea5e9', border: '1px solid rgba(14, 165, 233, 0.25)' };
+  }
+  if (lower.includes('yoga') || lower.includes('pilates')) {
+    return { background: 'rgba(139, 92, 246, 0.12)', color: '#8b5cf6', border: '1px solid rgba(139, 92, 246, 0.25)' };
+  }
+  return { background: 'rgba(99, 102, 241, 0.12)', color: '#6366f1', border: '1px solid rgba(99, 102, 241, 0.25)' };
 };
 
 const loadActivePlans = async () => {
@@ -322,43 +346,57 @@ onMounted(() => {
               <tr>
                 <th>DNI</th>
                 <th>Nombre Completo</th>
-                <th>Teléfono</th>
-                <th>Email</th>
-                <th>Plan</th>
+                <th>Actividad</th>
                 <th>Coach Asignado</th>
+                <th>Plan</th>
+                <th>Teléfono</th>
                 <th>Fecha Alta</th>
-                <th>Estado</th>
+                <th class="status-col">Estado</th>
                 <th class="actions-col">Acciones</th>
               </tr>
             </thead>
             <tbody>
               <tr v-for="socio in socios" :key="socio.id" :class="{ 'inactive-row': socio.estado === 'Inactivo' }">
                 <td class="font-bold">{{ socio.dni }}</td>
-                <td>{{ socio.nombreCompleto }}</td>
-                <td>{{ socio.telefono || '-' }}</td>
-                <td>{{ socio.email || '-' }}</td>
                 <td>
-                  <span class="plan-tag">{{ socio.planNombre }}</span>
+                  <div class="user-cell">
+                    <div class="table-avatar">
+                      <img v-if="socio.avatar" :src="getAvatarUrl(socio.avatar)" alt="Avatar" class="avatar-img-sm" />
+                      <div v-else class="avatar-initial-sm">
+                        {{ (socio.nombreCompleto || 'A').charAt(0).toUpperCase() }}
+                      </div>
+                    </div>
+                    <span>{{ socio.nombreCompleto }}</span>
+                  </div>
+                </td>
+                <td>
+                  <span class="actividad-badge" :style="getActivityStyle(socio.actividadNombre)">{{ socio.actividadNombre || 'Musculación' }}</span>
                 </td>
                 <td>
                   <span v-if="socio.coachNombre" class="coach-tag">{{ cleanCoachName(socio.coachNombre) }}</span>
                   <span v-else class="subtle-text">Sin asignación</span>
                 </td>
-                <td>{{ formatDate(socio.fechaAlta) }}</td>
                 <td>
+                  <span class="plan-tag">{{ socio.planNombre }}</span>
+                </td>
+                <td>{{ socio.telefono || '-' }}</td>
+                <td>{{ formatDate(socio.fechaAlta) }}</td>
+                <td class="status-cell">
                   <span :class="['badge', socio.estado === 'Activo' ? 'badge-active' : 'badge-inactive']">
                     {{ socio.estado }}
                   </span>
                 </td>
                 <td class="actions-cell">
-                  <button @click="editSocio(socio)" class="btn btn-sm btn-edit">Editar</button>
-                  <button
-                    v-if="isAdmin"
-                    @click="toggleStatus(socio)"
-                    :class="['btn', 'btn-sm', socio.estado === 'Activo' ? 'btn-status-inactive' : 'btn-status-active']"
-                  >
-                    {{ socio.estado === 'Activo' ? 'Inactivar' : 'Activar' }}
-                  </button>
+                  <div class="btn-actions-wrapper">
+                    <button @click="editSocio(socio)" class="btn-action btn-action-edit" title="Editar">Editar</button>
+                    <button
+                      v-if="isAdmin"
+                      @click="toggleStatus(socio)"
+                      :class="['btn-action', socio.estado === 'Activo' ? 'btn-action-off' : 'btn-action-on']"
+                    >
+                      {{ socio.estado === 'Activo' ? 'Inactivar' : 'Activar' }}
+                    </button>
+                  </div>
                 </td>
               </tr>
             </tbody>
@@ -471,7 +509,7 @@ onMounted(() => {
 <style scoped>
 .socios-container {
   width: 100%;
-  max-width: 1120px;
+  max-width: 1400px;
   margin: 0 auto;
   padding: 28px 24px;
   text-align: left;
@@ -553,20 +591,24 @@ onMounted(() => {
 
 .table-responsive {
   width: 100%;
-  overflow-x: auto;
+  overflow-x: hidden;
 }
 
 .data-table {
   width: 100%;
   border-collapse: collapse;
   margin-bottom: 20px;
-  font-size: 15px;
+  font-size: 13px;
+}
+
+.data-table tr {
+  border-bottom: 1px solid var(--border);
 }
 
 .data-table th, .data-table td {
-  padding: 14px 18px;
-  border-bottom: 1px solid var(--border);
+  padding: 10px 14px;
   text-align: left;
+  border: none;
   white-space: nowrap;
 }
 
@@ -588,9 +630,9 @@ onMounted(() => {
 .plan-tag {
   background-color: var(--accent-bg);
   color: var(--accent);
-  padding: 4px 10px;
+  padding: 3px 8px;
   border-radius: 6px;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
 }
 
@@ -598,9 +640,9 @@ onMounted(() => {
   background-color: rgba(245, 158, 11, 0.12);
   color: #d97706;
   border: 1px solid rgba(245, 158, 11, 0.3);
-  padding: 4px 10px;
+  padding: 3px 8px;
   border-radius: 6px;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
 }
 
@@ -623,12 +665,21 @@ onMounted(() => {
   border-radius: 8px;
 }
 
+.status-col, .status-cell {
+  width: 95px;
+  min-width: 95px;
+  text-align: center;
+}
+
 .badge {
   display: inline-block;
-  padding: 5px 12px;
-  font-size: 13px;
-  font-weight: 500;
-  border-radius: 30px;
+  padding: 3px 9px;
+  font-size: 11.5px;
+  font-weight: 600;
+  border-radius: 20px;
+  min-width: 70px;
+  text-align: center;
+  box-sizing: border-box;
 }
 
 .badge-active {
@@ -643,13 +694,72 @@ onMounted(() => {
   border: 1px solid rgba(231, 76, 60, 0.3);
 }
 
-.actions-col {
-  width: 160px;
+.actions-col, .actions-cell {
+  width: 145px;
+  min-width: 145px;
+  vertical-align: middle;
 }
 
-.actions-cell {
+.btn-actions-wrapper {
   display: flex;
-  gap: 8px;
+  gap: 6px;
+  align-items: center;
+}
+
+.btn-action {
+  padding: 4px 9px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  min-width: 68px;
+  text-align: center;
+  box-sizing: border-box;
+}
+
+.actividad-badge {
+  background-color: rgba(99, 102, 241, 0.12);
+  color: #6366f1;
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  display: inline-block;
+}
+
+.btn-action-edit {
+  background-color: var(--code-bg);
+  border-color: var(--border);
+  color: var(--text-h);
+}
+
+.btn-action-edit:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.btn-action-off {
+  background-color: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #ef4444;
+}
+
+.btn-action-off:hover {
+  background-color: rgba(239, 68, 68, 0.2);
+}
+
+.btn-action-on {
+  background-color: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.3);
+  color: #10b981;
+}
+
+.btn-action-on:hover {
+  background-color: rgba(16, 185, 129, 0.2);
 }
 
 .modal-backdrop {

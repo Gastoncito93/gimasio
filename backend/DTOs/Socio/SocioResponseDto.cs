@@ -15,5 +15,7 @@ public class SocioResponseDto
     public string PlanNombre { get; set; } = string.Empty;
     public int? IdCoach { get; set; }
     public string? CoachNombre { get; set; }
+    public string ActividadNombre { get; set; } = "Musculación";
+    public string? Avatar { get; set; }
     public string? Observacion { get; set; }
 }

@@ -12,6 +12,12 @@ public class SocioProgreso
     public decimal? PesoKg { get; set; }
     public string? Observaciones { get; set; }
 
+    // Campos extensibles por disciplina (Crossfit PRs, Spinning Cardio, Yoga Flexibilidad)
+    public string? TipoRegistro { get; set; }
+    public string? EjercicioNombre { get; set; }
+    public decimal? ValorMetrica { get; set; }
+    public string? UnidadMetrica { get; set; }
+
     public string? RutaFotoFrente { get; set; }
     public string? RutaFotoPerfil { get; set; }
     public string? RutaFotoEspalda { get; set; }

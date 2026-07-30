@@ -31,7 +31,8 @@ export default {
   },
 
   async pagar(id, fechaPago) {
-    const response = await api.patch(`/cuota/${id}/pagar`, { fechaPago });
+    const payload = typeof fechaPago === 'string' ? { fechaPago } : (fechaPago && fechaPago.fechaPago ? fechaPago : { fechaPago });
+    const response = await api.patch(`/cuota/${id}/pagar`, payload);
     return response.data;
   },
 

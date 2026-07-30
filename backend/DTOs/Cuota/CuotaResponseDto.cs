@@ -8,6 +8,7 @@ public class CuotaResponseDto
     public int IdSocio { get; set; }
     public string SocioNombreCompleto { get; set; } = string.Empty;
     public string SocioDni { get; set; } = string.Empty;
+    public string? SocioAvatar { get; set; }
     public int Periodo { get; set; }
     public decimal Monto { get; set; }
     public DateTime FechaVencimiento { get; set; }

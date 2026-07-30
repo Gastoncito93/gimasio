@@ -289,7 +289,7 @@ onMounted(() => {
 <style scoped>
 .planes-container {
   width: 100%;
-  max-width: 1120px;
+  max-width: 1400px;
   margin: 0 auto;
   padding: 28px 24px;
   text-align: left;
@@ -367,21 +367,22 @@ onMounted(() => {
 
 .table-responsive {
   width: 100%;
-  overflow-x: auto;
+  overflow-x: hidden;
 }
 
 .data-table {
   width: 100%;
   border-collapse: collapse;
   margin-bottom: 20px;
-  font-size: 15px;
+  font-size: 14px;
 }
 
 .data-table th, .data-table td {
-  padding: 14px 18px;
+  padding: 12px 14px;
   border-bottom: 1px solid var(--border);
   text-align: left;
-  white-space: nowrap;
+  white-space: normal;
+  word-break: break-word;
 }
 
 .data-table td {

@@ -64,7 +64,6 @@ onMounted(() => {
     </div>
 
     <div v-else-if="errorMessage" class="error-card">
-      <span class="error-icon">{{ isForbidden ? '🚫' : '⚠️' }}</span>
       <h2>{{ isForbidden ? 'Acceso Denegado' : 'Error' }}</h2>
       <p>{{ errorMessage }}</p>
       <button @click="volverListado" class="btn-back-main">
@@ -101,7 +100,7 @@ onMounted(() => {
       <div class="grid-details">
         <!-- Datos Personales -->
         <div class="detail-card">
-          <h3>📌 Información Personal</h3>
+          <h3>Información Personal</h3>
           <div class="info-item">
             <span class="label">DNI:</span>
             <span class="value">{{ alumno.dni || 'No disponible todavía' }}</span>
@@ -122,7 +121,7 @@ onMounted(() => {
 
         <!-- Plan & Coach -->
         <div class="detail-card">
-          <h3>📋 Plan & Entrenador</h3>
+          <h3>Plan & Entrenador</h3>
           <div class="info-item">
             <span class="label">Plan Actual:</span>
             <span class="value font-bold text-accent">{{ alumno.planNombre || 'No disponible todavía' }}</span>
@@ -139,7 +138,7 @@ onMounted(() => {
 
         <!-- Estado de Deuda -->
         <div class="detail-card">
-          <h3>💳 Estado de Cuenta</h3>
+          <h3>Estado de Cuenta</h3>
           <div class="info-item">
             <span class="label">Estado de Deuda:</span>
             <span
@@ -161,7 +160,7 @@ onMounted(() => {
 
         <!-- Progreso & Sesiones -->
         <div class="detail-card">
-          <h3>📈 Progreso & Sesiones</h3>
+          <h3>Progreso & Sesiones</h3>
           <div class="info-item">
             <span class="label">Progreso:</span>
             <span class="value text-subtle">{{ alumno.progreso || 'No disponible todavía' }}</span>
@@ -183,7 +182,7 @@ onMounted(() => {
 
       <!-- Observaciones -->
       <div class="detail-card margin-top-20">
-        <h3>📝 Observaciones</h3>
+        <h3>Observaciones</h3>
         <p class="observaciones-text">{{ alumno.observaciones || 'No disponible todavía' }}</p>
       </div>
 
@@ -195,7 +194,8 @@ onMounted(() => {
 
 <style scoped>
 .detalle-page {
-  max-width: 950px;
+  width: 100%;
+  max-width: 1400px;
   margin: 0 auto;
   padding: 36px 24px;
   text-align: left;

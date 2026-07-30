@@ -6,5 +6,7 @@ public class SocioSearchResultDto
     public string Dni { get; set; } = string.Empty;
     public string NombreCompleto { get; set; } = string.Empty;
     public string Estado { get; set; } = string.Empty;
+    public int IdPlan { get; set; }
     public string PlanNombre { get; set; } = string.Empty;
+    public decimal PlanPrecio { get; set; }
 }

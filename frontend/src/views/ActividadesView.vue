@@ -271,7 +271,8 @@ onMounted(() => {
 
 <style scoped>
 .page-container {
-  max-width: 1120px;
+  width: 100%;
+  max-width: 1400px;
   margin: 0 auto;
   padding: 28px 24px;
   box-sizing: border-box;

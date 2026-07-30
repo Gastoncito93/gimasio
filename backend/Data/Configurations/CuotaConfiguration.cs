@@ -14,7 +14,7 @@ public class CuotaConfiguration : IEntityTypeConfiguration<Cuota>
         builder.Property(c => c.Estado).IsRequired().HasMaxLength(20);
         builder.Property(c => c.Observacion).HasMaxLength(255);
 
-        builder.HasIndex(c => new { c.IdSocio, c.Periodo }).IsUnique();
+        builder.HasIndex(c => new { c.IdSocio, c.Periodo });
 
         builder.HasOne(c => c.Socio)
             .WithMany(s => s.Cuotas)
